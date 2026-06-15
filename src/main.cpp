@@ -35,9 +35,9 @@ struct ActiveMiningJob {
     unsigned long long header_hash = 0;
     unsigned long long nonce_start = 1000000000ULL;
 };
-
+// 🚀 FIX: Ensure hostnames are strictly clean domains without protocol tags
 const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
+    {"HeroMiners (Global/Auto)", "ergo.herominers.com", "1147"},
     {"2Miners (Regular PPLNS)", "://2miners.com", "8888"},
     {"WoolyPooly (Low Fee)", "://woolypooly.com", "3100"},
     {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
