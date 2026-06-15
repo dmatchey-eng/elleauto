@@ -200,6 +200,12 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
     unsigned long long nonce_iterator = initial_nonce;
     unsigned long long half_elements_vector = 200000000; 
 
+    // 🚀 FIX: Convert pool multiplier scalar into a native 64-bit target range
+    unsigned long long derived_target = 0xFFFFFFFFFFFFFFFFULL;
+    if (difficulty_target > 0) {
+        derived_target = 0xFFFFFFFFFFFFFFFFULL / difficulty_target;
+    }
+
     unsigned int reset_counter = 0;
     clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
 
@@ -207,12 +213,11 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
     clSetKernelArg(g_miningKernel, 1, sizeof(cl_mem), &g_dagBufferPart2);
     clSetKernelArg(g_miningKernel, 2, sizeof(unsigned long long), &half_elements_vector);
     clSetKernelArg(g_miningKernel, 3, sizeof(unsigned long long), &header_hash_input);
-    clSetKernelArg(g_miningKernel, 4, sizeof(unsigned long long), &difficulty_target);
+    clSetKernelArg(g_miningKernel, 4, sizeof(unsigned long long), &derived_target); // Pass the corrected 64-bit target
     clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
     clSetKernelArg(g_miningKernel, 6, sizeof(cl_mem), &g_devNonces);
     clSetKernelArg(g_miningKernel, 7, sizeof(cl_mem), &g_devCounter);
 
-    // Wavefront multiple layout size
     size_t global_work_size = 64 * 1024;
     size_t local_work_size = 256;
 
@@ -232,16 +237,14 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
             clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, sizeof(solved_nonce), &solved_nonce, 0, nullptr, nullptr);
             clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
             
-            // 🚀 FIX 2: Explicitly query the TRUE, real-time shared string from the main.cpp context
             extern std::string g_current_job_id;
             void submitShare(const std::string& job_id, unsigned long long found_nonce);
-            
-            // Sends the verified math blocks back to HeroMiners with the correct ID matching
             submitShare(g_current_job_id, solved_nonce);
         }
 
+        // Increment search nonces aggressively per loop pass
         nonce_iterator += global_work_size;
-        std::this_thread::sleep_for(std::chrono::milliseconds(5)); // Optimize cycle latency slightly
+        std::this_thread::sleep_for(std::chrono::milliseconds(2)); // Maximize Polaris compute lane saturation
     }
 }
 
