@@ -93,7 +93,16 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
     g_shares_submitted++;
-    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
+    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
+
+    // 🚀 FIX: Strip out any accidental wrapping quotes from the Job ID string
+    std::string clean_job_id = job_id;
+    while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) {
+        clean_job_id.erase(0, 1);
+    }
+    while (!clean_job_id.empty() && (clean_job_id.back() == '"' || clean_job_id.back() == ' ')) {
+        clean_job_id.pop_back();
+    }
 
     // Format the found nonce to exactly 16 hex characters, zero-padded, no "0x"
     std::stringstream hex_stream;
@@ -102,14 +111,14 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
 
-    // 🚀 FIX: Added the missing "00000000" extra_nonce2 field into the parameters array!
-    // The strict Ergo layout requires: [worker, job_id, extra_nonce2, nonce]
+    // Build the perfectly sanitized, flat JSON-RPC array
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
+                                clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
+
 
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
