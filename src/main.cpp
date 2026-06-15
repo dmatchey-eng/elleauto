@@ -3,26 +3,20 @@
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <atomic>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 
-// Near the top of src/main.cpp
+// Global atomic flag to handle safe thread shutdown if connection drops
+std::atomic<bool> is_mining_running(true);
+
 struct StratumJob {
     std::string job_id = "";
     std::string seed_hash = "";  
     std::string difficulty = ""; 
     bool is_new_job = false;
-};
-
-// Forward declaration telling main.cpp this function exists in another file
-StratumJob parseStratumLine(const std::string& line);
-
-struct PoolOption {
-    std::string name;
-    std::string hostname;
-    std::string port;
 };
 
 struct MinerConfig {
@@ -31,19 +25,38 @@ struct MinerConfig {
     std::string pool_port = "";
 };
 
-// 1. Hardcoded Default Pools for Ergo Autolykos v2
-const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
-    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"},
-    {"WoolyPooly (Low Fee)", "erg.woolypooly.com", "3100"},
-    {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
-};
+// Forward declaration of your external parser hook
+StratumJob parseStratumLine(const std::string& line);
 
-void initWinsock() {
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "[ERROR] Winsock initialization failed.\n";
-        exit(1);
+// This function runs concurrently on a separate CPU core
+void listenToPool(SOCKET poolSocket) {
+    char buffer[1024]; // Using a small static array to pull chunks from network stack
+    std::string stream_accumulator = "";
+
+    while (is_mining_running) {
+        int bytesReceived = recv(poolSocket, buffer, sizeof(buffer) - 1, 0);
+        if (bytesReceived <= 0) {
+            std::cerr << "\n[ERROR] Connection lost to pool server.\n";
+            is_mining_running = false;
+            break;
+        }
+
+        buffer[bytesReceived] = '\0';
+        stream_accumulator += buffer;
+
+        size_t newline_pos;
+        while ((newline_pos = stream_accumulator.find('\n')) != std::string::npos) {
+            std::string single_line = stream_accumulator.substr(0, newline_pos);
+            stream_accumulator.erase(0, newline_pos + 1);
+
+            // Calls your hook inside src/stratum_parser.cpp
+            StratumJob current_job = parseStratumLine(single_line);
+
+            if (current_job.is_new_job) {
+                // Background telemetry printing or hardware adjustment updates go here
+                // Note: We avoid direct cout logs here to prevent clashing with the UI dashboard
+            }
+        }
     }
 }
 
@@ -154,14 +167,27 @@ int main() {
     std::cout << "Enter your Ergo Wallet Address: ";
     std::cin >> config.wallet;
 
-    selectPool(config);
+    // Call your default pool interactive menu
+    // (Defined in previous steps, matching selection logic)
+    // selectPool(config); 
 
     SOCKET poolSocket = INVALID_SOCKET;
     if (connectToStratum(config, poolSocket)) {
-        std::cout << "[SUCCESS] Authenticated on pool! Ready for OpenCL work.\n";
+        std::cout << "[SUCCESS] Authenticated on pool!\n";
+        std::cout << "Spawning background network listening worker thread...\n";
         
-        // Next milestone will process incoming JSON jobs in a listening thread.
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        // 🚀 Kick network processing entirely off to a background loop
+        std::thread network_worker(listenToPool, poolSocket);
+        network_worker.detach(); // Detach to let it manage itself independently
+
+        // 3. Main execution loop (Completely unlocked and reactive console)
+        while (is_mining_running) {
+            // Your console frame renderer, user keyboard inputs, 
+            // or GPU temperature checker runs completely stutter-free here!
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+
         closesocket(poolSocket);
     }
 
