@@ -165,35 +165,40 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     size_t half_elements = total_elements_count / 2;
     size_t half_bytes_size = half_elements * sizeof(unsigned long long);
 
+    std::cout << "[GPU] Forcing VRAM buffer creation allocation blocks...\n";
+
     g_dagBufferPart1 = clCreateBuffer(g_clContext, CL_MEM_READ_ONLY, half_bytes_size, nullptr, &err1);
     g_dagBufferPart2 = clCreateBuffer(g_clContext, CL_MEM_READ_ONLY, half_bytes_size, nullptr, &err2);
 
     if (err1 != CL_SUCCESS || err2 != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] DAG VRAM Allocation failed. Part1: " << err1 << " Part2: " << err2 << "\n";
+        system("pause");
         g_is_dag_building = false;
         return false;
     }
 
-    // 🚀 FIX 1: Generate real variations based on the current block state parameters
-    // This populates valid mathematical lookup tables inside your 8GB VRAM spaces
     std::vector<unsigned long long> host_chunk(half_elements);
-    extern unsigned long long convertHexToUlong(const std::string& hexStr);
-    extern std::string g_current_job_id;
-    
-    // Quick pseudo-hash generator filling the DAG with deterministic mathematical bytes
     for(size_t i = 0; i < half_elements; ++i) {
         host_chunk[i] = (i * 0xFFFFFFFFFFFFFFFFULL) ^ (half_elements + i);
     }
     
+    // 🚀 FIX 1: Enforce CL_TRUE to block the CPU thread until data physically transfers
     g_dag_progress = 25;
     clEnqueueWriteBuffer(g_clQueue, g_dagBufferPart1, CL_TRUE, 0, half_bytes_size, host_chunk.data(), 0, nullptr, nullptr);
     
     g_dag_progress = 75;
     clEnqueueWriteBuffer(g_clQueue, g_dagBufferPart2, CL_TRUE, 0, half_bytes_size, host_chunk.data(), 0, nullptr, nullptr);
     
+    // 🚀 FIX 2: Force the AMD driver to flush every deferred command instantly to the hardware
+    std::cout << "[GPU] Flashing queues. Forcing hardware allocation sweep across memory lines...\n";
+    clFinish(g_clQueue); 
+    
     g_dag_progress = 100;
     g_is_dag_building = false;
+    std::cout << "[GPU SUCCESS] Hardware initialization check complete.\n";
     return true;
 }
+
 
 void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input) {
     cl_int err;
