@@ -88,7 +88,8 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
 }
 
 SOCKET g_poolSocketGlobal = INVALID_SOCKET;
-std::atomic<unsigned int> g_rpc_id_counter(3);
+// 🚀 FIX: Start the dynamic message counter at 100 to clear the pool's low-ID reservation block
+std::atomic<unsigned int> g_rpc_id_counter(100); 
 
 void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
