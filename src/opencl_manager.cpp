@@ -13,6 +13,12 @@ extern std::atomic<int> g_dag_progress;
 extern std::atomic<bool> g_is_dag_building;
 extern std::atomic<bool> is_mining_running;
 
+// 🚀 NEW FLAG: Set to true when a mining loop is active. 
+// Set to false to instantly interrupt and clear the execution state.
+std::atomic<bool> is_current_job_valid(false); 
+
+// Track the active job ID to avoid double-processing duplicate packets
+std::string g_current_job_id = ""; 
 // Global OpenCL handles
 cl_context g_clContext = nullptr;
 cl_command_queue g_clQueue = nullptr;
