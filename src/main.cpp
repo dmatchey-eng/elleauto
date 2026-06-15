@@ -93,19 +93,20 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
     g_shares_submitted++;
-    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
+    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
 
-    // 🚀 FIX 1: Format nonce to exactly 16 hex characters, zero-padded, NO "0x" prefix
+    // Format the found nonce to exactly 16 hex characters, zero-padded, no "0x"
     std::stringstream hex_stream;
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
 
-    // HeroMiners Ergo requirement payload format matching:
+    // 🚀 FIX: Added the missing "00000000" extra_nonce2 field into the parameters array!
+    // The strict Ergo layout requires: [worker, job_id, extra_nonce2, nonce]
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                job_id + "\", \"" + nonce_hex + "\"]}\n";
+                                job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
