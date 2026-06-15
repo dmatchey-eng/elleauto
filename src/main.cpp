@@ -44,7 +44,6 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
     {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
 };
 
-
 // Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
@@ -94,14 +93,16 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
     g_shares_submitted++;
-    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
+    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
 
+    // 🚀 FIX 1: Format nonce to exactly 16 hex characters, zero-padded, NO "0x" prefix
     std::stringstream hex_stream;
-    hex_stream << "0x" << std::hex << found_nonce;
+    hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
 
+    // HeroMiners Ergo requirement payload format matching:
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
                                 job_id + "\", \"" + nonce_hex + "\"]}\n";
@@ -136,18 +137,12 @@ void gpuMiningOrchestrator() {
 }
 
 void listenToPool(SOCKET poolSocket) {
-    // 🚀 FIX 1: Explicitly instantiate a real, large character array space container
-    char recv_buffer[4096]; 
+    char recv_buffer[4096]; // 4KB buffer space array
     std::string stream_accumulator = "";
 
-    // Open an appendable debug log file stream on your local hard drive path
     std::ofstream debug_log("network_log.txt", std::ios::app);
-    if (debug_log.is_open()) {
-        debug_log << "\n=== NEW INITIALIZATIONHandshake Loop Triggered ===\n";
-    }
 
     while (is_mining_running) {
-        // 🚀 FIX 2: Correctly pass the array identifier and its actual data length metrics
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
         if (bytesReceived <= 0) {
             std::cerr << "\n[ERROR] Connection lost or stream rejected by pool server.\n";
@@ -156,13 +151,12 @@ void listenToPool(SOCKET poolSocket) {
             break;
         }
 
-        recv_buffer[bytesReceived] = '\0'; 
+        // 🚀 FIX 2: Safely convert exactly the received bytes to a string to prevent null spam
         std::string dynamic_packet_chunk(recv_buffer, bytesReceived);
         
-        // 🚀 DEBUG HOOK: Write raw un-parsed incoming text straight to your text log file
         if (debug_log.is_open()) {
             debug_log << "[RAW RECEIVED]: " << dynamic_packet_chunk << "\n";
-            debug_log.flush(); // Force write to disk instantly
+            debug_log.flush(); 
         }
 
         stream_accumulator += dynamic_packet_chunk;
