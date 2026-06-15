@@ -51,6 +51,11 @@ std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = "0"; 
 
 ActiveMiningJob g_next_job;
+// Explicitly initialize the dynamic RPC message counter baseline here
+std::atomic<unsigned int> g_rpc_id_counter(100); 
+
+// Track the persistent dynamic extra_nonce2 locally
+std::atomic<unsigned long long> g_extra_nonce2_counter(0);
     MinerConfig config;
 
 std::atomic<int> g_dag_progress(0);
