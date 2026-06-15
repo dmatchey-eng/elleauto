@@ -153,7 +153,8 @@ void listenToPool(SOCKET poolSocket) {
     char recv_buffer[4096]; // 4KB buffer space array
     std::string stream_accumulator = "";
 
-    std::ofstream debug_log("network_log.txt", std::ios::app);
+    // std::ofstream debug_log("network_log.txt", std::ios::app);
+    // enable line above for debug network log
 
     while (is_mining_running) {
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
