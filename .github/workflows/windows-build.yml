@@ -14,15 +14,18 @@ jobs:
     - name: Checkout Repository Files
       uses: actions/checkout@v4
 
+    # 🚀 FIX: This step loads Visual Studio tools into the shell environment variables
+    - name: Set up MSVC Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
     - name: Set up CMake
       uses: jwlawson/actions-setup-cmake@v2
       with:
         cmake-version: '3.25.x'
 
     - name: Configure CMake Target Pipeline
-      # We inform CMake to read from our project directory and use MSVC
-      run: cmake -B build -S .
+      # By specifying the -G "Visual Studio 17 2022" generator, CMake knows exactly what compiler to map
+      run: cmake -G "Visual Studio 17 2022" -A x64 -B build -S .
 
     - name: Build Executable Binary
-      # Compileselleauto.exe in Release optimization mode
       run: cmake --build build --config Release
