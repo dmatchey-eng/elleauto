@@ -198,7 +198,6 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     return true;
 }
 
-
 void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input) {
     cl_int err;
     unsigned long long nonce_iterator = initial_nonce;
@@ -216,7 +215,6 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
 
     unsigned int reset_counter = 0;
     clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
-
     clSetKernelArg(g_miningKernel, 0, sizeof(cl_mem), &g_dagBufferPart1);
     clSetKernelArg(g_miningKernel, 1, sizeof(cl_mem), &g_dagBufferPart2);
     clSetKernelArg(g_miningKernel, 2, sizeof(unsigned long long), &half_elements_vector);
@@ -225,9 +223,6 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
     clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
     clSetKernelArg(g_miningKernel, 6, sizeof(cl_mem), &g_devNonces);
     clSetKernelArg(g_miningKernel, 7, sizeof(cl_mem), &g_devCounter);
-
-    // Keep the rest of your global sizes and execution loops exactly the same below...
-
 
     size_t global_work_size = 64 * 1024;
     size_t local_work_size = 256;
@@ -269,3 +264,4 @@ void shutdownOpenCL() {
     if (g_clQueue) clReleaseCommandQueue(g_clQueue);
     if (g_clContext) clReleaseContext(g_clContext);
 }
+
