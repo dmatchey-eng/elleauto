@@ -1,73 +1,128 @@
 #include <iostream>
 #include <string>
+#include <vector>
 #include <thread>
 #include <chrono>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
-// Structure to hold miner configurations
+#pragma comment(lib, "Ws2_32.lib")
+
+struct PoolOption {
+    std::string name;
+    std::string hostname;
+    std::string port;
+};
+
 struct MinerConfig {
     std::string wallet = "";
-    std::string pool_address = "stratum+tcp://://ergoplatform.com";
+    std::string pool_host = "";
+    std::string pool_port = "";
 };
 
-// Structure to hold runtime telemetry data
-struct MinerStats {
-    double hashrate = 0.0;
-    int temp = 0;
-    int fan_speed = 0;
-    unsigned int accepted_shares = 0;
-    unsigned int rejected_shares = 0;
+// 1. Hardcoded Default Pools for Ergo Autolykos v2
+const std::vector<PoolOption> DEFAULT_POOLS = {
+    {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
+    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"},
+    {"WoolyPooly (Low Fee)", "erg.woolypooly.com", "3100"},
+    {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
 };
 
-// Clears the console for a clean frame update
-void clearScreen() {
-    std::cout << "\033[2J\033[1;1H";
+void initWinsock() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "[ERROR] Winsock initialization failed.\n";
+        exit(1);
+    }
 }
 
-void printDashboard(const MinerConfig& config, const MinerStats& stats) {
-    clearScreen();
+// 2. Select Pool Interface
+void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
-    std::cout << "  AUTOLYKOS V2 MINER - AMD RX 580 (Ellesmere 8GB)\n";
+    std::cout << "  SELECT ERGO MINING POOL\n";
     std::cout << "=========================================================\n";
-    std::cout << " [POOL]   " << config.pool_address << "\n";
-    std::cout << " [WALLET] " << config.wallet.substr(0, 12) << "... (Truncated)\n";
+    for (size_t i = 0; i < DEFAULT_POOLS.size(); ++i) {
+        std::cout << " [" << i + 1 << "] " << DEFAULT_POOLS[i].name;
+        if (DEFAULT_POOLS[i].hostname != "CUSTOM") {
+            std::cout << " (" << DEFAULT_POOLS[i].hostname << ":" << DEFAULT_POOLS[i].port << ")";
+        }
+        std::cout << "\n";
+    }
     std::cout << "---------------------------------------------------------\n";
-    std::cout << " [SPEED]  " << stats.hashrate << " MH/s\n";
-    std::cout << " [TEMP]   " << stats.temp << " C  |  [FAN] " << stats.fan_speed << "%\n";
-    std::cout << " [SHARES] Accepted: " << stats.accepted_shares 
-              << "  |  Rejected: " << stats.rejected_shares << "\n";
-    std::cout << "=========================================================\n";
-    std::cout << " Press Ctrl+C to exit mining safely.\n";
+    std::cout << "Choose an option (1-" << DEFAULT_POOLS.size() << "): ";
+    
+    size_t choice;
+    std::cin >> choice;
+    
+    if (choice > 0 && choice < DEFAULT_POOLS.size()) {
+        config.pool_host = DEFAULT_POOLS[choice - 1].hostname;
+        config.pool_port = DEFAULT_POOLS[choice - 1].port;
+    } else {
+        std::cout << "Enter custom Stratum Hostname (e.g., erg.2miners.com): ";
+        std::cin >> config.pool_host;
+        std::cout << "Enter custom Stratum Port (e.g., 8888): ";
+        std::cin >> config.pool_port;
+    }
+}
+
+// 3. Connect and Handshake via Stratum Protocol
+bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
+    struct addrinfo hints {}, *result = nullptr;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    if (getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result) != 0) {
+        std::cerr << "[ERROR] DNS Resolution failed for " << config.pool_host << "\n";
+        return false;
+    }
+
+    connectSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+    if (connectSocket == INVALID_SOCKET) {
+        std::cerr << "[ERROR] Socket creation failed.\n";
+        freeaddrinfo(result);
+        return false;
+    }
+
+    std::cout << "[NET] Connecting to pool socket...\n";
+    if (connect(connectSocket, result->ai_addr, (int)result->ai_addrlen) == SOCKET_ERROR) {
+        std::cerr << "[ERROR] Pool connection timed out or refused.\n";
+        closesocket(connectSocket);
+        freeaddrinfo(result);
+        return false;
+    }
+    freeaddrinfo(result);
+    std::cout << "[NET] Connected! Sending Stratum Subscription...\n";
+
+    // 4. Send Stratum Subscriptions (Format: JSON-RPC)
+    std::string subscribePayload = "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": [\"elleauto-v1.0\", \"Autolykosv2\"]}\n";
+    send(connectSocket, subscribePayload.c_str(), (int)subscribePayload.length(), 0);
+
+    // Auth Payload linking your wallet address as worker
+    std::string authPayload = "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"" + config.wallet + "\", \"x\"]}\n";
+    send(connectSocket, authPayload.c_str(), (int)authPayload.length(), 0);
+
+    return true;
 }
 
 int main() {
+    initWinsock();
     MinerConfig config;
-    
-    // 1. Configuration Input Phase
+
     std::cout << "Enter your Ergo Wallet Address: ";
     std::cin >> config.wallet;
-    
-    std::cout << "Enter Pool Address (or press enter for default [" << config.pool_address << "]): ";
-    std::cin.ignore(); // Clear newline
-    std::string custom_pool;
-    std::getline(std::cin, custom_pool);
-    if (!custom_pool.empty()) {
-        config.pool_address = custom_pool;
-    }
 
-    // 2. Simulated Mining Loop (Where OpenCL work will trigger)
-    MinerStats stats { 59.5, 65, 45, 0, 0 }; // Baseline expectations for optimized RX 580
-    
-    std::cout << "\nInitializing OpenCL Context & building DAG... Please wait.\n";
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    selectPool(config);
 
-    while (true) {
-        // Simulate real-time metric updates
-        stats.accepted_shares++;
-        printDashboard(config, stats);
+    SOCKET poolSocket = INVALID_SOCKET;
+    if (connectToStratum(config, poolSocket)) {
+        std::cout << "[SUCCESS] Authenticated on pool! Ready for OpenCL work.\n";
         
-        // Refresh every 5 seconds (prevent console stuttering)
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // Next milestone will process incoming JSON jobs in a listening thread.
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        closesocket(poolSocket);
     }
 
+    WSACleanup();
     return 0;
 }
