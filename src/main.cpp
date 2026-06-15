@@ -28,7 +28,7 @@ struct StratumJob {
     std::string job_id = "";
     std::string seed_hash = "";  
     std::string difficulty = ""; 
-    bool is_new_job = false;
+     is_new_job = false;
 };
 
 struct ActiveMiningJob {
@@ -49,8 +49,8 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
 
 // Thread Lifespan and Work Signal Controls
 // Thread Lifespan and Work Signal Controls
-std::atomic<bool> is_mining_running(true);
-std::atomic<bool> is_current_job_valid(false);
+std::atomic<> is_mining_running(true);
+std::atomic<> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
 ActiveMiningJob g_next_job;
 
@@ -215,28 +215,40 @@ void selectPool(MinerConfig& config) {
 }
 
 bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
+    // Debug printout to see exactly what address string is hitting the resolver
+    std::cout << "[NET Debug] Attempting DNS resolution for host: " << config.pool_host 
+              << " on port: " << config.pool_port << "\n";
+
     struct addrinfo hints {}, *result = nullptr;
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;     // 🚀 FIX 1: Allow both IPv4 and IPv6 lookup paths
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    if (getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result) != 0) {
-        std::cerr << "[ERROR] DNS Resolution failed.\n";
+    // Execute Windows native address translation protocol
+    int dns_status = getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result);
+    if (dns_status != 0) {
+        std::cerr << "[ERROR] DNS Resolution failed. Windows Error Code: " << WSAGetLastError() 
+                  << " (getaddrinfo code: " << dns_status << ")\n";
         return false;
     }
 
     connectSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     if (connectSocket == INVALID_SOCKET) {
+        std::cerr << "[ERROR] Socket creation failed. Error: " << WSAGetLastError() << "\n";
         freeaddrinfo(result);
         return false;
     }
 
+    std::cout << "[NET] Connecting to pool socket endpoint...\n";
     if (connect(connectSocket, result->ai_addr, (int)result->ai_addrlen) == SOCKET_ERROR) {
+        std::cerr << "[ERROR] Pool connection refused or timed out. Error: " << WSAGetLastError() << "\n";
         closesocket(connectSocket);
         freeaddrinfo(result);
         return false;
     }
+    
     freeaddrinfo(result);
+    std::cout << "[NET] Connected successfully! Sending Stratum handshake...\n";
 
     std::string subscribePayload = "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": [\"elleauto-v1.0\", \"Autolykosv2\"]}\n";
     send(connectSocket, subscribePayload.c_str(), (int)subscribePayload.length(), 0);
