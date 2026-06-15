@@ -55,4 +55,30 @@ StratumJob parseStratumLine(const std::string& line) {
         }
     }
     return job;
+// Inside src/stratum_parser.cpp's parseStratumLine function:
+// Update your parsing rules to monitor dynamic message IDs greater than 2
+
+if (line.find("\"result\":true") != std::string::npos && line.find("\"error\":null") != std::string::npos) {
+    // Check if this true result corresponds to a dynamic share submission response
+    if (line.find("\"id\":1") == std::string::npos && line.find("\"id\":2") == std::string::npos) {
+        extern std::atomic<unsigned int> g_shares_accepted;
+        extern std::string g_network_status_msg;
+        
+        g_shares_accepted++;
+        g_network_status_msg = "✅ [SHARE ACCEPTED] Pool verified solution block!";
+        return job;
+    }
+}
+
+if (line.find("\"error\":") != std::string::npos && line.find("\"error\":null") == std::string::npos) {
+    if (line.find("\"id\":1") == std::string::npos && line.find("\"id\":2") == std::string::npos) {
+        extern std::atomic<unsigned int> g_shares_rejected;
+        extern std::string g_network_status_msg;
+        
+        g_shares_rejected++;
+        g_network_status_msg = "❌ [SHARE REJECTED] Stale or invalid nonce verification.";
+        return job;
+    }
+}
+
 }
