@@ -49,7 +49,14 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
+std::atomic<unsigned int> g_shares_submitted(0);
+std::atomic<unsigned int> g_shares_accepted(0);
+std::atomic<unsigned int> g_shares_rejected(0);
+
 ActiveMiningJob g_next_job;
+
+// Visual status tracker string for the live dashboard alert panel
+std::string g_network_status_msg = "Awaiting network jobs...";
 
 // External Subsystem Declarations (Defined in OpenCL/Parser source files)
 StratumJob parseStratumLine(const std::string& line);
@@ -207,6 +214,33 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
     send(connectSocket, authPayload.c_str(), (int)authPayload.length(), 0);
 
     return true;
+}
+// Globally visible socket handle so other threads can forward traffic
+SOCKET g_poolSocketGlobal = INVALID_SOCKET;
+std::atomic<unsigned int> g_rpc_id_counter(3); // Start IDs after initial sub/auth (1 and 2)
+
+void submitShare(const std::string& job_id, unsigned long long found_nonce) {
+    if (g_poolSocketGlobal == INVALID_SOCKET) return;
+
+    g_shares_submitted++;
+    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
+
+    // Format the found nonce back into a hexadecimal string for the JSON payload
+    std::stringstream hex_stream;
+    hex_stream << "0x" << std::hex << found_nonce;
+    std::string nonce_hex = hex_stream.str();
+
+    // Increment RPC message tracking index safely
+    unsigned int message_id = g_rpc_id_counter.fetch_add(1);
+
+    // Build standard mining.submit JSON payload: ["worker_name", "job_id", "nonce"]
+    // Note: Adjust the worker tag parameters to fit your pool's custom username formats if needed
+    std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
+                                ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
+                                job_id + "\", \"" + nonce_hex + "\"]}\n";
+
+    // Transmit directly down the network socket pipeline
+    send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
 
 int main() {
