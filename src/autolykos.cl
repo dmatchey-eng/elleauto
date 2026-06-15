@@ -65,14 +65,16 @@ __kernel void autolykos_search(
         mix_state += dag_chunk.s3;
     }
 
-    // Cryptographic Finalization Mix
+     // STEP 3: Cryptographic Finalization Mix
     ulong final_hash = ROTATE_LEFT64(mix_state, 1ULL) ^ 0x510E527FADE682D1ULL;
 
-    // Evaluate solution parameters against target ceiling difficulty
+    // STEP 4: Authenticated Target Evaluation
     if (final_hash < target_difficulty) {
         uint share_slot = atomic_inc(output_counter);
         if (share_slot < 10) {
-            output_found_nonces[share_slot] = current_nonce;
+            // 🚀 FIX: Save the found nonce AND its unique matching mix_state solution hash chunk!
+            output_found_nonces[share_slot * 2]     = current_nonce;
+            output_found_nonces[(share_slot * 2) + 1] = mix_state; // This is the real dynamic group element seed
         }
     }
 }
