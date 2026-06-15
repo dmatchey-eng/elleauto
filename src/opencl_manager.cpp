@@ -143,8 +143,8 @@ bool initOpenCL() {
         return false;
     }
     
-    unsigned long long host_nonce_placeholder = 0;
     unsigned int host_counter_placeholder = 0;
+    unsigned long long host_nonce_placeholder[20] = {0}; // Double size to hold both Nonce and Solution pairs
     g_devNonces = clCreateBuffer(g_clContext, CL_MEM_WRITE_ONLY, sizeof(host_nonce_placeholder), nullptr, &err);
     g_devCounter = clCreateBuffer(g_clContext, CL_MEM_READ_WRITE, sizeof(host_counter_placeholder), nullptr, &err);
 
@@ -238,14 +238,19 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
         unsigned int found_count = 0;
         clEnqueueReadBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(found_count), &found_count, 0, nullptr, nullptr);
 
-        if (found_count > 0) {
-            unsigned long long solved_nonce = 0;
-            clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, sizeof(solved_nonce), &solved_nonce, 0, nullptr, nullptr);
+            if (found_count > 0) {
+            // 🚀 FIX: Pull down both the Nonce and its mathematical matching Solution hash directly from VRAM
+            unsigned long long solved_data[20] = {0};
+            clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, found_count * 2 * sizeof(unsigned long long), solved_data, 0, nullptr, nullptr);
             clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
             
             extern std::string g_current_job_id;
-            void submitShare(const std::string& job_id, unsigned long long found_nonce);
-            submitShare(g_current_job_id, solved_nonce);
+            // Updated declaration passing BOTH the numerical Nonce and the true mathematical Solution hash
+            void submitShare(const std::string& job_id, unsigned long long found_nonce, unsigned long long found_solution);
+            
+            for (unsigned int i = 0; i < found_count; i++) {
+                submitShare(g_current_job_id, solved_data[i * 2], solved_data[(i * 2) + 1]);
+            }
         }
 
         // Increment search nonces aggressively per loop pass
