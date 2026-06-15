@@ -196,6 +196,21 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
             
             // TODO: Trigger mining.submit network packet containing solved_nonce
         }
+        // Inside src/opencl_manager.cpp -> runMiningLoop()
+    if (found_count > 0) {
+    unsigned long long solved_nonce = 0;
+    clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, sizeof(solved_nonce), &solved_nonce, 0, nullptr, nullptr);
+    
+    // Instantly flash card tracking registries back to zero
+    clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
+    
+    // Call our newly added submission utility cross-thread handle
+    extern std::string g_current_job_id;
+    void submitShare(const std::string& job_id, unsigned long long found_nonce);
+    
+    submitShare(g_current_job_id, solved_nonce);
+}
+
 
         nonce_iterator += global_work_size;
         std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Yield slightly to prevent system display lag
