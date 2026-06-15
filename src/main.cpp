@@ -9,6 +9,7 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+bool initOpenCL();
 // Global atomic flag to handle safe thread shutdown if connection drops
 std::atomic<bool> is_mining_running(true);
 
