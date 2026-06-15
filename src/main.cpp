@@ -41,7 +41,7 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
     {"HeroMiners (USA - West)", "us.ergo.herominers.com", "1180"},
     {"HeroMiners (USA - East)", "us2.ergo.herominers.com", "1180"},
     {"HeroMiners (Germany / EU)", "de.ergo.herominers.com", "1180"},
-    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
+    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"}
 };
 
 // Global Thread & State Synced Variables
