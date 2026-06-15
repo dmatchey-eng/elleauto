@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <fstream> // Added for local text file debug log tracking
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -133,20 +134,36 @@ void gpuMiningOrchestrator() {
 }
 
 void listenToPool(SOCKET poolSocket) {
-    char recv_buffer[2048]; 
+    // 🚀 FIX 1: Explicitly instantiate a real, large character array space container
+    char recv_buffer[4096]; 
     std::string stream_accumulator = "";
 
+    // Open an appendable debug log file stream on your local hard drive path
+    std::ofstream debug_log("network_log.txt", std::ios::app);
+    if (debug_log.is_open()) {
+        debug_log << "\n=== NEW INITIALIZATIONHandshake Loop Triggered ===\n";
+    }
+
     while (is_mining_running) {
+        // 🚀 FIX 2: Correctly pass the array identifier and its actual data length metrics
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
         if (bytesReceived <= 0) {
-            std::cerr << "\n[ERROR] Connection lost to pool server.\n";
+            std::cerr << "\n[ERROR] Connection lost or stream rejected by pool server.\n";
             is_mining_running = false;
             is_current_job_valid = false;
             break;
         }
 
         recv_buffer[bytesReceived] = '\0'; 
-        stream_accumulator += std::string(recv_buffer, bytesReceived);
+        std::string dynamic_packet_chunk(recv_buffer, bytesReceived);
+        
+        // 🚀 DEBUG HOOK: Write raw un-parsed incoming text straight to your text log file
+        if (debug_log.is_open()) {
+            debug_log << "[RAW RECEIVED]: " << dynamic_packet_chunk << "\n";
+            debug_log.flush(); // Force write to disk instantly
+        }
+
+        stream_accumulator += dynamic_packet_chunk;
 
         size_t newline_pos;
         while ((newline_pos = stream_accumulator.find('\n')) != std::string::npos) {
@@ -169,7 +186,9 @@ void listenToPool(SOCKET poolSocket) {
             }
         }
     }
+    if (debug_log.is_open()) debug_log.close();
 }
+
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
     std::cout << "  SELECT ERGO MINING POOL\n";
