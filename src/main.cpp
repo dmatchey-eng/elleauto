@@ -104,6 +104,37 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
 
     return true;
 }
+void listenToPool(SOCKET poolSocket) {
+    char buffer[4096];
+    std::string stream_accumulator = "";
+
+    while (true) {
+        int bytesReceived = recv(poolSocket, buffer, sizeof(buffer) - 1, 0);
+        if (bytesReceived <= 0) {
+            std::cerr << "[ERROR] Connection lost to pool.\n";
+            break;
+        }
+
+        buffer[bytesReceived] = '\0';
+        stream_accumulator += buffer;
+
+        // Process line-by-line using the newline delimiter
+        size_t newline_pos;
+        while ((newline_pos = stream_accumulator.find('\n')) != std::string::npos) {
+            std::string single_line = stream_accumulator.substr(0, newline_pos);
+            stream_accumulator.erase(0, newline_pos + 1);
+
+            // Trigger the parser hook
+            StratumJob current_job = parseStratumLine(single_line);
+
+            if (current_job.is_new_job) {
+                std::cout << ">>> [NEW BLOCK] Job ID: " << current_job.job_id << "\n";
+                std::cout << "    [SEED HASH]: " << current_job.seed_hash << "\n";
+                // TODO: Update OpenCL execution parameters with this new work
+            }
+        }
+    }
+}
 
 int main() {
     initWinsock();
