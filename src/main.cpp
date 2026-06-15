@@ -38,12 +38,14 @@ struct ActiveMiningJob {
 };
 
 // Hardcoded Pool List Constants
+// 🚀 FIX 2: Clean hostnames without any protocol prefixes
 const std::vector<PoolOption> DEFAULT_POOLS = {
     {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
     {"2Miners (Regular PPLNS)", "://2miners.com", "8888"},
     {"WoolyPooly (Low Fee)", "://woolypooly.com", "3100"},
     {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
 };
+
 
 // Thread Lifespan and Work Signal Controls
 // Thread Lifespan and Work Signal Controls
@@ -248,6 +250,10 @@ int main() {
 
     std::cout << "Enter your Ergo Wallet Address: ";
     std::cin >> config.wallet;
+
+     // 🚀 FIX 1: This completely clears out the leftover "Enter" key from the input buffer
+    std::cin.ignore(10000, '\n'); 
+
 
     selectPool(config);
 
