@@ -9,12 +9,11 @@ add_executable(elleauto
     src/main.cpp 
     src/stratum_parser.cpp
     src/opencl_manager.cpp
-    src/opencl_stub.cpp
 )
 
-# 🚀 FIX: We explicitly link using lowercase "opencl" which forces Windows to read
-# from C:\Windows\System32\OpenCL.dll natively, ignoring our internal stub file!
-target_link_libraries(elleauto PRIVATE opencl ws2_32)
+# 🚀 FIX: Completely removed opencl.lib from the build requirements.
+# This prevents GitHub from failing, and we handle the driver dynamically instead!
+target_link_libraries(elleauto PRIVATE ws2_32)
 
 add_custom_command(TARGET elleauto POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
