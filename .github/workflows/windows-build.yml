@@ -1,24 +1,61 @@
-cmake_minimum_required(VERSION 3.15)
-project(elleauto LANGUAGES CXX)
+name: Production Release Pipeline
 
-set(CMAKE_CXX_STANDARD 17)
+on:
+  push:
+    # 🚀 PUSH TRIGGERS: Runs a check on every main/master branch update
+    branches: [ "main", "master" ]
+    # 🚀 TAG TRIGGER: Automatically generates a downloadable zip release on version numbers
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ "main", "master" ]
 
-# 🚀 FIX: Map your local repository path to act as the primary OpenCL search route
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+jobs:
+  build-and-release:
+    runs-on: windows-latest
 
-add_executable(elleauto 
-    src/main.cpp 
-    src/stratum_parser.cpp
-    src/opencl_manager.cpp
-)
+    steps:
+    - name: Checkout Repository Files
+      uses: actions/checkout@v4
 
-# 🚀 FIX: Link directly to OpenCL.dll using standard Windows lookup paths.
-# This forces compilation to pass without needing active GPU hardware on the runner.
-target_link_libraries(elleauto PRIVATE OpenCL ws2_32)
+    - name: Set up MSVC Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
 
-# AUTOMATION: Keep copying autolykos.cl to the output directory on build
-add_custom_command(TARGET elleauto POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/autolykos.cl"
-    "$<TARGET_FILE_DIR:elleauto>/autolykos.cl"
-)
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.25.x'
+
+    - name: Configure CMake
+      run: cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -B build -S .
+
+    - name: Compile Release Binary
+      run: cmake --build build --config Release
+
+    - name: Verify Binary Output
+      run: |
+        if (Test-Path "build/elleauto.exe") {
+            echo "Success: elleauto.exe compiled cleanly!"
+        } else {
+            echo "Error: Output binary missing."
+            exit 1
+        }
+
+    - name: Package Artifacts
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        mkdir dist
+        copy build\elleauto.exe dist\
+        copy src\autolykos.cl dist\
+        compress-archive -Path dist\* -DestinationPath elleauto-windows-x64.zip
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: elleauto-windows-x64.zip
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
