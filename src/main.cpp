@@ -6,8 +6,85 @@
 #include <atomic>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <atomic>
+#include <thread>
+#include <iomanip>
 
 #pragma comment(lib, "Ws2_32.lib")
+
+// Global State Flags
+extern std::atomic<bool> is_mining_running;
+extern std::atomic<bool> is_current_job_valid;
+
+// Updated dynamic configuration targets
+struct ActiveMiningJob {
+    unsigned long long difficulty = 0;
+    unsigned long long header_hash = 0;
+    unsigned long long nonce_start = 1000000000ULL;
+};
+ActiveMiningJob g_next_job;
+
+// Forward declarations of our OpenCL manager components
+bool initOpenCL();
+bool allocateAndBuildVectorDag(size_t total_elements_count);
+void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input);
+void shutdownOpenCL();
+
+// 1. High-Performance Hexadecimal String to Numeric Converter
+unsigned long long convertHexToUlong(const std::string& hexStr) {
+    std::string cleanHex = hexStr;
+    // Strip common pool network prefix tags if present
+    if (cleanHex.compare(0, 2, "0x") == 0 || cleanHex.compare(0, 2, "0X") == 0) {
+        cleanHex = cleanHex.substr(2);
+    }
+    
+    unsigned long long result = 0;
+    std::stringstream ss;
+    ss << std::hex << cleanHex;
+    ss >> result;
+    return result;
+}
+
+// 2. The GPU Thread Worker Orchestrator
+void gpuMiningOrchestrator() {
+    std::cout << "[GPU] Initializing hardware configuration arrays...\n";
+    if (!initOpenCL()) {
+        std::cerr << "[GPU ERROR] Failed to initialize OpenCL stack.\n";
+        return;
+    }
+
+    // Allocate the 8GB structures once. It remains persistent across jobs.
+    size_t target_elements = 400000000; 
+    if (!allocateAndBuildVectorDag(target_elements)) {
+        std::cerr << "[GPU ERROR] VRAM allocation limits hit. Exiting thread.\n";
+        return;
+    }
+
+    std::cout << "[GPU] Engine online. Awaiting first Stratum job initialization...\n";
+
+    // Managed execution pipeline loop
+    while (is_mining_running) {
+        if (is_current_job_valid) {
+            // Local copy to prevent race conditions while the listener parses next network ticks
+            ActiveMiningJob work_pass = g_next_job;
+
+            std::cout << "[GPU Worker] Starting kernel calculation round for header: 0x" 
+                      << std::hex << work_pass.header_hash << std::dec << "\n";
+
+            // Fire the kernel loop. This blocks this worker thread, but safely checks
+            // 'is_current_job_valid' every 10ms internally to break out instantly if needed.
+            runMiningLoop(work_pass.nonce_start, work_pass.difficulty, work_pass.header_hash);
+        } else {
+            // Yield CPU cycles while waiting for the network listener to populate data
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+
+    shutdownOpenCL();
+}
 
 bool initOpenCL();
 // Global atomic flag to handle safe thread shutdown if connection drops
