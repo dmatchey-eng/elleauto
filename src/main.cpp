@@ -43,6 +43,7 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
     {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
 };
 
+// Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
@@ -56,12 +57,12 @@ std::atomic<unsigned int> g_shares_accepted(0);
 std::atomic<unsigned int> g_shares_rejected(0);
 std::string g_network_status_msg = "Awaiting network jobs...";
 
+// Forward Declarations of Subsystems
 StratumJob parseStratumLine(const std::string& line);
 bool initOpenCL();
 bool allocateAndBuildVectorDag(size_t total_elements_count);
 void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input);
 void shutdownOpenCL();
-
 void initWinsock() {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -168,7 +169,6 @@ void listenToPool(SOCKET poolSocket) {
         }
     }
 }
-
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
     std::cout << "  SELECT ERGO MINING POOL\n";
@@ -239,6 +239,7 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
 
     return true;
 }
+
 int main() {
     initWinsock();
     MinerConfig config;
@@ -246,13 +247,9 @@ int main() {
     std::cout << "Enter your Ergo Wallet Address: ";
     std::cin >> config.wallet;
 
-     // 🚀 FIX 1: This completely clears out the leftover "Enter" key from the input buffer
     std::cin.ignore(10000, '\n'); 
-
-
     selectPool(config);
 
-    // 🚀 FIX: Declared cleanly at the top of the main function scope
     SOCKET poolSocket = INVALID_SOCKET; 
 
     if (connectToStratum(config, poolSocket)) {
@@ -275,24 +272,26 @@ int main() {
             std::cout << "---------------------------------------------------------\n";
             std::cout << " [STATUS]  " << g_network_status_msg << "\n";
             std::cout << "---------------------------------------------------------\n";
-            std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
+            std::cout << " [SHARES]  Submitted: " << g_shares_shares_submitted 
                       << " | Accepted: " << g_shares_accepted 
                       << " | Rejected: " << g_shares_rejected << "\n";
             std::cout << "=========================================================\n";
             std::cout << " Press Ctrl+C to terminate mining safely.\n";
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
         }
-    }
-    else {
-        // 🚀 NEW: Log if the stratum connection itself refused to handshake
+    } else {
         std::cerr << "\n[CRITICAL] connectToStratum returned false! Handshake failed.\n";
     }
 
-    // 🚀 FIX: This prevents the window from closing under ANY exit condition
     std::cout << "\n=========================================================\n";
     std::cout << " [APPLICATION TERMINATED] Miner thread loop stopped.\n";
     std::cout << "=========================================================\n";
     system("pause"); 
-    if (poolSocket != INVALID_SOCKET) {closesocket(poolSocket);}WSACleanup();
+
+    if (poolSocket != INVALID_SOCKET) {
+        closesocket(poolSocket);
+    }
+    WSACleanup();
     return 0;
 }
