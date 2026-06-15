@@ -291,6 +291,16 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
     }
+    else {
+        // 🚀 NEW: Log if the stratum connection itself refused to handshake
+        std::cerr << "\n[CRITICAL] connectToStratum returned false! Handshake failed.\n";
+    }
+
+    // 🚀 FIX: This prevents the window from closing under ANY exit condition
+    std::cout << "\n=========================================================\n";
+    std::cout << " [APPLICATION TERMINATED] Miner thread loop stopped.\n";
+    std::cout << "=========================================================\n";
+    system("pause"); 
     if (poolSocket != INVALID_SOCKET) {closesocket(poolSocket);}WSACleanup();
     return 0;
 }
