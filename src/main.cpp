@@ -35,14 +35,14 @@ struct ActiveMiningJob {
     unsigned long long header_hash = 0;
     unsigned long long nonce_start = 1000000000ULL;
 };
-// 🚀 FIX: Ensure hostnames are strictly clean domains without protocol tags
-// Update your DEFAULT_POOLS at the bottom of Section 1 in src/main.cpp
+// 🚀 FIX: Overwrite the list at the bottom of Section 1 in src/main.cpp
 const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (North America)", "na.ergo.herominers.com", "1147"},
-    {"HeroMiners (Europe Region)", "eu.ergo.herominers.com", "1147"},
-    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"},
-    {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
+    {"HeroMiners (USA - West)", "us.ergo.herominers.com", "1180"},
+    {"HeroMiners (USA - East)", "us2.ergo.herominers.com", "1180"},
+    {"HeroMiners (Germany / EU)", "de.ergo.herominers.com", "1180"},
+    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
 };
+
 
 // Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
