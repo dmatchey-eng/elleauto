@@ -8,6 +8,17 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
+// Near the top of src/main.cpp
+struct StratumJob {
+    std::string job_id = "";
+    std::string seed_hash = "";  
+    std::string difficulty = ""; 
+    bool is_new_job = false;
+};
+
+// Forward declaration telling main.cpp this function exists in another file
+StratumJob parseStratumLine(const std::string& line);
+
 struct PoolOption {
     std::string name;
     std::string hostname;
