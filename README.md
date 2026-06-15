@@ -1,6 +1,9 @@
 # elleauto
 ```
 elleauto/
+├── .github/
+│   └── workflows/
+│       └── windows-build.yml   <-- Added actions pipeline profile
 ├── CMakeLists.txt
 ├── LICENSE
 ├── include/
@@ -22,10 +25,10 @@ elleauto/
 │       ├── cl_platform.h
 │       ├── cl_va_api_media_sharing_intel.h
 │       ├── cl_version.h
-│       ├── opencl.h
-│       └── placeholder.h
+│       └── opencl.h
+│    
 └── src/
-    ├── autolykos.cl
+    ├── autolykos.cl    <-- Updated production-ready kernel
     ├── main.cpp
     ├── opencl_manager.cpp
     └── stratum_parser.cpp
