@@ -144,14 +144,13 @@ void gpuMiningOrchestrator() {
 }
 
 // Network Socket Background Listener Thread
-// Network Socket Background Listener Thread
 void listenToPool(SOCKET poolSocket) {
-    // 🚀 FIX: Use a proper character array buffer to hold network data packets safely
+    // 🚀 FIX: Use a proper 2048-byte buffer array to safely hold incoming pool data packets
     char recv_buffer[2048]; 
     std::string stream_accumulator = "";
 
     while (is_mining_running) {
-        // Pass the array buffer and its full capacity to the network stream read hook
+        // Pass the array and its size so recv can properly parse network traffic
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
         if (bytesReceived <= 0) {
             std::cerr << "\n[ERROR] Connection lost to pool server.\n";
@@ -160,7 +159,7 @@ void listenToPool(SOCKET poolSocket) {
             break;
         }
 
-        // Null-terminate the string chunk we just grabbed from the internet
+        // Properly null-terminate the character data array
         recv_buffer[bytesReceived] = '\0'; 
         stream_accumulator += recv_buffer;
 
@@ -186,7 +185,6 @@ void listenToPool(SOCKET poolSocket) {
         }
     }
 }
-
 
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
