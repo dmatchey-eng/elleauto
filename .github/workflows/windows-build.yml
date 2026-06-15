@@ -3,6 +3,8 @@ name: Continuous Release Packaging Pipeline
 on:
   push:
     branches: [ "main", "master" ]
+  # 🚀 ADDED: Allows you to manually trigger the compiler from the web UI anytime
+  workflow_dispatch:
 
 jobs:
   build-and-release:
@@ -40,9 +42,9 @@ jobs:
       with:
         files: elleauto-rolling-x64.zip
         name: "Continuous Rolling Build"
-        tag_name: "rolling"     # 🚀 Key: This pins the zip to a permanent rolling asset marker
+        tag_name: "rolling"
         make_latest: true
         draft: false
-        prerelease: true        # Marked as prerelease so it stays clean
+        prerelease: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
