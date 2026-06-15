@@ -251,6 +251,43 @@ int main() {
     std::cin >> config.wallet;
 
     selectPool(config);
+    // Update your main UI loop tracking state block within int main()
+// Replace your connectToStratum success scope with this managed handler:
+
+if (connectToStratum(config, poolSocket)) {
+    std::cout << "[SUCCESS] Authenticated on pool!\n";
+    g_poolSocketGlobal = poolSocket; // Map global tracking identity handle
+
+    std::thread network_worker(listenToPool, poolSocket);
+    network_worker.detach();
+
+    std::thread gpu_worker(gpuMiningOrchestrator);
+    gpu_worker.detach();
+
+    // Clean frame rendering refresh manager loop running on the main thread
+    while (is_mining_running) {
+        // Clear screen using ANSI escape patterns
+        std::cout << "\033[2J\033[1;1H"; 
+        
+        std::cout << "=========================================================\n";
+        std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
+        std::cout << "=========================================================\n";
+        std::cout << " [POOL]    " << config.pool_host << ":" << config.pool_port << "\n";
+        std::cout << " [WALLET]  " << config.wallet.substr(0, 15) << "... (Truncated)\n";
+        std::cout << "---------------------------------------------------------\n";
+        std::cout << " [STATUS]  " << g_network_status_msg << "\n";
+        std::cout << "---------------------------------------------------------\n";
+        std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
+                  << " | Accepted: " << g_shares_accepted 
+                  << " | Rejected: " << g_shares_rejected << "\n";
+        std::cout << "=========================================================\n";
+        std::cout << " Press Ctrl+C to terminate mining safely.\n";
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Smooth 1Hz updates
+    }
+    closesocket(poolSocket);
+}
+
 
     SOCKET poolSocket = INVALID_SOCKET;
     if (connectToStratum(config, poolSocket)) {
