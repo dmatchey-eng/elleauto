@@ -150,11 +150,19 @@ void gpuMiningOrchestrator() {
 }
 
 void listenToPool(SOCKET poolSocket) {
-    char recv_buffer[4096]; // 4KB buffer space array
+    char recv_buffer[4096]; 
     std::string stream_accumulator = "";
 
-    // std::ofstream debug_log("network_log.txt", std::ios::app);
-    // enable line above for debug network log
+    // 🚀 FIX 1: Truncate (wipe) the file on launch by omitting std::ios::app
+    // This ensures old data from previous runs is deleted instantly.
+    std::ofstream debug_log("network_log.txt");
+    
+    // 🚀 FIX 2: Counter to automatically cap the log size
+    int log_counter = 0; 
+
+    if (debug_log.is_open()) {
+        debug_log << "=== Fresh Miner Launch: Stratum Handshake Initiated ===\n";
+    }
 
     while (is_mining_running) {
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
@@ -165,12 +173,19 @@ void listenToPool(SOCKET poolSocket) {
             break;
         }
 
-        // 🚀 FIX 2: Safely convert exactly the received bytes to a string to prevent null spam
+        recv_buffer[bytesReceived] = '\0'; 
         std::string dynamic_packet_chunk(recv_buffer, bytesReceived);
         
-        if (debug_log.is_open()) {
+        // 🚀 FIX 3: Auto-cap logging after 150 incoming network packets
+        if (debug_log.is_open() && log_counter < 150) {
             debug_log << "[RAW RECEIVED]: " << dynamic_packet_chunk << "\n";
             debug_log.flush(); 
+            log_counter++;
+            
+            if (log_counter == 150) {
+                debug_log << "\n=== LOG AUTO-CAPPED: Stopping file writes to prevent storage bloat. ===\n";
+                debug_log.close(); // Safely disconnect file handle early
+            }
         }
 
         stream_accumulator += dynamic_packet_chunk;
@@ -198,6 +213,7 @@ void listenToPool(SOCKET poolSocket) {
     }
     if (debug_log.is_open()) debug_log.close();
 }
+
 
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
