@@ -1,0 +1,28 @@
+name: Windows Build Verification CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository Files
+      uses: actions/checkout@v4
+
+    - name: Set up CMake
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.25.x'
+
+    - name: Configure CMake Target Pipeline
+      # We inform CMake to read from our project directory and use MSVC
+      run: cmake -B build -S .
+
+    - name: Build Executable Binary
+      # Compileselleauto.exe in Release optimization mode
+      run: cmake --build build --config Release
