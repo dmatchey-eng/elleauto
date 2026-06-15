@@ -7,7 +7,6 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
-#include <windows.h> // Required for dynamic DLL loading
 
 // Shared atomic variables for UI synchronization
 extern std::atomic<int> g_dag_progress;
@@ -25,26 +24,6 @@ cl_mem g_dagBufferPart2 = nullptr;
 cl_mem g_devNonces = nullptr;
 cl_mem g_devCounter = nullptr;
 
-// 🚀 FIX: Function pointers to dynamically link with your physical AMD driver
-typedef cl_int(CL_API_CALL* PFN_clGetPlatformIDs)(cl_uint, cl_platform_id*, cl_uint*);
-PFN_clGetPlatformIDs dynamic_clGetPlatformIDs = nullptr;
-
-bool loadOpenclDllNatively() {
-    // Force loading directly from the Windows System32 directory
-    HMODULE opencl_module = LoadLibraryA("OpenCL.dll");
-    if (!opencl_module) {
-        std::cerr << "[GPU ERROR] OpenCL.dll missing from Windows System32. Please install AMD drivers.\n";
-        system("pause");
-        return false;
-    }
-
-    // Map our global function call straight into the real OS graphics driver table
-    dynamic_clGetPlatformIDs = (PFN_clGetPlatformIDs)GetProcAddress(opencl_module, "clGetPlatformIDs");
-    if (!dynamic_clGetPlatformIDs) return false;
-
-    return true;
-}
-
 void applyAmdDriverFixes() {
     _putenv_s("GPU_MAX_ALLOC_PERCENT", "100");
     _putenv_s("GPU_SINGLE_ALLOC_PERCENT", "100");
@@ -61,13 +40,10 @@ std::string readKernelSource(const std::string& filepath) {
 }
 
 bool initOpenCL() {
-    // 🚀 FIX: Load the Windows OS driver file at runtime
-    if (!loadOpenclDllNatively()) return false;
     applyAmdDriverFixes();
     
     cl_uint platformCount = 0;
-    // Call the dynamic function pointer instead of the static library hook
-    dynamic_clGetPlatformIDs(0, nullptr, &platformCount); 
+    clGetPlatformIDs(0, nullptr, &platformCount); 
     if (platformCount == 0) {
         std::cerr << "\n[GPU ERROR] No OpenCL platforms reported by your AMD driver.\n";
         system("pause");
@@ -75,8 +51,7 @@ bool initOpenCL() {
     }
 
     std::vector<cl_platform_id> platforms(platformCount);
-    dynamic_clGetPlatformIDs(platformCount, platforms.data(), nullptr);
-
+    clGetPlatformIDs(platformCount, platforms.data(), nullptr);
     cl_device_id targetDevice = nullptr;
     bool foundAMD = false;
 
