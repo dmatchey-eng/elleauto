@@ -160,6 +160,33 @@ void listenToPool(SOCKET poolSocket) {
         }
     }
 }
+extern std::atomic<int> g_dag_progress;
+extern std::atomic<bool> g_is_dag_building;
+
+void printDashboard(const MinerConfig& config, const MinerStats& stats) {
+    clearScreen();
+    std::cout << "=========================================================\n";
+    std::cout << "  AUTOLYKOS V2 MINER - AMD RX 580 (Ellesmere 8GB)\n";
+    std::cout << "=========================================================\n";
+    
+    if (g_is_dag_building) {
+        std::cout << "\n\n      [HARDWARE STATE] Generating Memory-Hard DAG...\n";
+        std::cout << "      Progress: [";
+        int barWidth = 20;
+        int pos = (g_dag_progress * barWidth) / 100;
+        for (int i = 0; i < barWidth; ++i) {
+            if (i < pos) std::cout << "=";
+            else if (i == pos) std::cout << ">";
+            else std::cout << " ";
+        }
+        std::cout << "] " << g_dag_progress << " %\n\n\n";
+    } else {
+        std::cout << " [POOL]   " << config.pool_host << ":" << config.pool_port << "\n";
+        std::cout << " [SPEED]  " << stats.hashrate << " MH/s\n";
+        std::cout << " [SHARES] Accepted: " << stats.accepted_shares << "\n";
+    }
+    std::cout << "=========================================================\n";
+}
 
 int main() {
     initWinsock();
