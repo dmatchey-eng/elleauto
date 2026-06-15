@@ -3,23 +3,21 @@ project(elleauto LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# 1. Locate the OpenCL framework libraries on Windows 10
-find_package(OpenCL REQUIRED)
+# Point compiler to your local folder containing include/CL/cl.h
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# 2. Tell the compiler where to look for local headers (include/CL)
-include_directories(${OpenCL_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# 3. Explicitly link all of your newly written source files
+# Compile main project files AND our custom OpenCL linker stub
 add_executable(elleauto 
     src/main.cpp 
     src/stratum_parser.cpp
     src/opencl_manager.cpp
+    src/opencl_stub.cpp
 )
 
-# 4. Link against OpenCL and standard Windows network socket libraries
-target_link_libraries(elleauto PRIVATE OpenCL::OpenCL ws2_32)
+# Link against standard Windows sockets
+target_link_libraries(elleauto PRIVATE ws2_32)
 
-# 5. AUTOMATION: Copy autolykos.cl to the output directory automatically on build
+# Copy the hardware kernel file to the build directory automatically
 add_custom_command(TARGET elleauto POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_CURRENT_SOURCE_DIR}/src/autolykos.cl"
