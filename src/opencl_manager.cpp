@@ -2,7 +2,14 @@
 #include <iostream>
 #include <vector>
 #include <cstdlib>
+// Shared atomic states for the UI dashboard to read safely
+std::atomic<int> g_dag_progress(0);         // 0 to 100%
+std::atomic<bool> g_is_dag_building(false); // Controls loading screens
 
+// OpenCL Global Handles
+extern cl_mem dag_buffer_part1;
+extern cl_mem dag_buffer_part2;
+cl_kernel g_mining_kernel = nullptr;
 // Global variables to track our split buffers
 cl_mem dag_buffer_part1 = nullptr;
 cl_mem dag_buffer_part2 = nullptr;
