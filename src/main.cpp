@@ -46,10 +46,15 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
 };
 
 // Thread Lifespan and Work Signal Controls
+// Thread Lifespan and Work Signal Controls
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
 ActiveMiningJob g_next_job;
+
+// 🚀 FIX: Defining the global atomic variables so opencl_manager can link to them!
+std::atomic<int> g_dag_progress(0);
+std::atomic<bool> g_is_dag_building(false);
 
 // Dynamic share counters
 std::atomic<unsigned int> g_shares_submitted(0);
