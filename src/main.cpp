@@ -11,7 +11,6 @@
 
 #pragma comment(lib, "Ws2_32.lib")
 
-// Pool Option Definition for Menu
 struct PoolOption {
     std::string name;
     std::string hostname;
@@ -28,7 +27,7 @@ struct StratumJob {
     std::string job_id = "";
     std::string seed_hash = "";  
     std::string difficulty = ""; 
-     is_new_job = false;
+    bool is_new_job = false;
 };
 
 struct ActiveMiningJob {
@@ -37,8 +36,6 @@ struct ActiveMiningJob {
     unsigned long long nonce_start = 1000000000ULL;
 };
 
-// Hardcoded Pool List Constants
-// 🚀 FIX 2: Clean hostnames without any protocol prefixes
 const std::vector<PoolOption> DEFAULT_POOLS = {
     {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
     {"2Miners (Regular PPLNS)", "://2miners.com", "8888"},
@@ -46,32 +43,25 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
     {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
 };
 
-
-// Thread Lifespan and Work Signal Controls
-// Thread Lifespan and Work Signal Controls
-std::atomic<> is_mining_running(true);
-std::atomic<> is_current_job_valid(false);
+std::atomic<bool> is_mining_running(true);
+std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
 ActiveMiningJob g_next_job;
 
-// 🚀 FIX: Defining the global atomic variables so opencl_manager can link to them!
 std::atomic<int> g_dag_progress(0);
 std::atomic<bool> g_is_dag_building(false);
 
-// Dynamic share counters
 std::atomic<unsigned int> g_shares_submitted(0);
 std::atomic<unsigned int> g_shares_accepted(0);
 std::atomic<unsigned int> g_shares_rejected(0);
 std::string g_network_status_msg = "Awaiting network jobs...";
 
-// External Subsystem Declarations (Defined in OpenCL/Parser source files)
 StratumJob parseStratumLine(const std::string& line);
 bool initOpenCL();
 bool allocateAndBuildVectorDag(size_t total_elements_count);
 void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input);
 void shutdownOpenCL();
 
-// Networking Initialization Helper
 void initWinsock() {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -80,7 +70,6 @@ void initWinsock() {
     }
 }
 
-// Hexadecimal Utility Function
 unsigned long long convertHexToUlong(const std::string& hexStr) {
     std::string cleanHex = hexStr;
     if (cleanHex.compare(0, 2, "0x") == 0 || cleanHex.compare(0, 2, "0X") == 0) {
@@ -93,7 +82,6 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
     return result;
 }
 
-// Global socket handle for external subsystem usage
 SOCKET g_poolSocketGlobal = INVALID_SOCKET;
 std::atomic<unsigned int> g_rpc_id_counter(3);
 
@@ -116,7 +104,6 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
 
-// GPU Concurrent Thread Module
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
     if (!initOpenCL()) {
@@ -143,14 +130,11 @@ void gpuMiningOrchestrator() {
     shutdownOpenCL();
 }
 
-// Network Socket Background Listener Thread
 void listenToPool(SOCKET poolSocket) {
-    // 🚀 FIX: Use a proper 2048-byte buffer array to safely hold incoming pool data packets
     char recv_buffer[2048]; 
     std::string stream_accumulator = "";
 
     while (is_mining_running) {
-        // Pass the array and its size so recv can properly parse network traffic
         int bytesReceived = recv(poolSocket, recv_buffer, sizeof(recv_buffer) - 1, 0);
         if (bytesReceived <= 0) {
             std::cerr << "\n[ERROR] Connection lost to pool server.\n";
@@ -159,9 +143,8 @@ void listenToPool(SOCKET poolSocket) {
             break;
         }
 
-        // Properly null-terminate the character data array
         recv_buffer[bytesReceived] = '\0'; 
-        stream_accumulator += recv_buffer;
+        stream_accumulator += std::string(recv_buffer, bytesReceived);
 
         size_t newline_pos;
         while ((newline_pos = stream_accumulator.find('\n')) != std::string::npos) {
@@ -215,16 +198,14 @@ void selectPool(MinerConfig& config) {
 }
 
 bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
-    // Debug printout to see exactly what address string is hitting the resolver
     std::cout << "[NET Debug] Attempting DNS resolution for host: " << config.pool_host 
               << " on port: " << config.pool_port << "\n";
 
     struct addrinfo hints {}, *result = nullptr;
-    hints.ai_family = AF_UNSPEC;     // 🚀 FIX 1: Allow both IPv4 and IPv6 lookup paths
+    hints.ai_family = AF_UNSPEC;     
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    // Execute Windows native address translation protocol
     int dns_status = getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result);
     if (dns_status != 0) {
         std::cerr << "[ERROR] DNS Resolution failed. Windows Error Code: " << WSAGetLastError() 
@@ -258,7 +239,6 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
 
     return true;
 }
-
 int main() {
     initWinsock();
     MinerConfig config;
