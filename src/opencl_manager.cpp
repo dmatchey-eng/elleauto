@@ -24,7 +24,6 @@ cl_mem g_dagBufferPart2 = nullptr;
 cl_mem g_devNonces = nullptr;
 cl_mem g_devCounter = nullptr;
 
-// Overrides Windows WDDM video driver throttling behaviors
 void applyAmdDriverFixes() {
     _putenv_s("GPU_MAX_ALLOC_PERCENT", "100");
     _putenv_s("GPU_SINGLE_ALLOC_PERCENT", "100");
@@ -43,9 +42,13 @@ std::string readKernelSource(const std::string& filepath) {
 bool initOpenCL() {
     applyAmdDriverFixes();
     
-    cl_uint platformCount;
+    cl_uint platformCount = 0;
     clGetPlatformIDs(0, nullptr, &platformCount);
-    if (platformCount == 0) return false;
+    if (platformCount == 0) {
+        std::cerr << "\n[GPU ERROR] clGetPlatformIDs returned 0 platforms. Is your AMD driver installed?\n";
+        system("pause"); // Freezes screen so you can see the error
+        return false;
+    }
 
     std::vector<cl_platform_id> platforms(platformCount);
     clGetPlatformIDs(platformCount, platforms.data(), nullptr);
@@ -53,30 +56,37 @@ bool initOpenCL() {
     cl_device_id targetDevice = nullptr;
     bool foundAMD = false;
 
-    // =========================================================================
-    // 🔍 PLATFORM DISCOVERY LOOP (Around Line 70)
-    // =========================================================================
     for (auto platform : platforms) {
-        char platformName[128];
-        clGetPlatformInfo(platform, CL_PLATFORM_NAME, sizeof(platformName), platformName, nullptr);
-        std::string platStr(platformName);
+        size_t size = 0;
+        clGetPlatformInfo(platform, CL_PLATFORM_NAME, 0, nullptr, &size);
+        std::vector<char> platName(size);
+        clGetPlatformInfo(platform, CL_PLATFORM_NAME, size, platName.data(), nullptr);
+        std::string platStr(platName.data());
+
+        std::cout << "[GPU Debug] Found Platform: " << platStr << "\n";
 
         if (platStr.find("AMD") != std::string::npos || platStr.find("Advanced Micro Devices") != std::string::npos) {
-            cl_uint deviceCount;
+            cl_uint deviceCount = 0;
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &deviceCount);
             
+            if (deviceCount == 0) continue;
+
             std::vector<cl_device_id> devices(deviceCount);
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, deviceCount, devices.data(), nullptr);
 
             for (auto device : devices) {
-                char deviceName[128];
-                clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
-                std::string devStr(deviceName);
+                clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &size);
+                std::vector<char> devName(size);
+                clGetDeviceInfo(device, CL_DEVICE_NAME, size, devName.data(), nullptr);
+                std::string devStr(devName.data());
 
-                // Target standard Polaris 20 / Ellesmere architecture profiles
-                if (devStr.find("580") != std::string::npos || devStr.find("Ellesmere") != std::string::npos) {
+                std::cout << "[GPU Debug] Found Device: " << devStr << "\n";
+
+                // Target standard Polaris / Ellesmere architecture profiles or general fallback
+                if (devStr.find("580") != std::string::npos || devStr.find("Ellesmere") != std::string::npos || devStr.find("Radeon") != std::string::npos) {
                     targetDevice = device;
                     foundAMD = true;
+                    std::cout << "[GPU Debug] Match found! Targeting: " << devStr << "\n";
                     break;
                 }
             }
@@ -84,40 +94,68 @@ bool initOpenCL() {
         if (foundAMD) break;
     }
 
-    if (!targetDevice) return false;
+    if (!targetDevice) {
+        std::cerr << "\n[GPU ERROR] No compatible AMD RX 580 or Radeon GPUs found in platform enumeration.\n";
+        system("pause");
+        return false;
+    }
 
     cl_int err;
     g_clContext = clCreateContext(nullptr, 1, &targetDevice, nullptr, nullptr, &err);
-    g_clQueue = clCreateCommandQueueWithProperties(g_clContext, targetDevice, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] clCreateContext failed. Code: " << err << "\n";
+        system("pause");
+        return false;
+    }
 
-    // FIX: Look directly for "autolykos.cl" since CMake copies it automatically
+    g_clQueue = clCreateCommandQueueWithProperties(g_clContext, targetDevice, nullptr, &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] clCreateCommandQueueWithProperties failed. Code: " << err << "\n";
+        system("pause");
+        return false;
+    }
+
     std::string kernelSource = readKernelSource("autolykos.cl"); 
-    if (kernelSource.empty()) return false;
+    if (kernelSource.empty()) {
+        std::cerr << "\n[GPU ERROR] Could not read 'autolykos.cl'. Make sure it's in the same folder as the exe!\n";
+        system("pause");
+        return false;
+    }
 
     const char* sourcePtr = kernelSource.c_str();
     size_t sourceLen = kernelSource.length();
     g_clProgram = clCreateProgramWithSource(g_clContext, 1, &sourcePtr, &sourceLen, &err);
 
-    // Optimized compiler options targeting Polaris compute engine layout arrays
     err = clBuildProgram(g_clProgram, 1, &targetDevice, "-cl-mad-enable -cl-fast-relaxed-math", nullptr, nullptr);
     if (err != CL_SUCCESS) {
         size_t logSize;
         clGetProgramBuildInfo(g_clProgram, targetDevice, CL_PROGRAM_BUILD_LOG, 0, nullptr, &logSize);
         std::vector<char> buildLog(logSize);
         clGetProgramBuildInfo(g_clProgram, targetDevice, CL_PROGRAM_BUILD_LOG, logSize, buildLog.data(), nullptr);
-        std::cerr << "[COMPILER LOG]\n" << buildLog.data() << "\n";
+        std::cerr << "\n[GPU COMPILER ERROR] Kernel compilation failed:\n" << buildLog.data() << "\n";
+        system("pause");
         return false;
     }
 
     g_miningKernel = clCreateKernel(g_clProgram, "autolykos_search", &err);
+    if (err != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] clCreateKernel failed. Code: " << err << "\n";
+        system("pause");
+        return false;
+    }
     
-    // Allocate shared outputs once to minimize garbage collection latency
     unsigned long long host_nonce_placeholder = 0;
     unsigned int host_counter_placeholder = 0;
     g_devNonces = clCreateBuffer(g_clContext, CL_MEM_WRITE_ONLY, sizeof(host_nonce_placeholder), nullptr, &err);
     g_devCounter = clCreateBuffer(g_clContext, CL_MEM_READ_WRITE, sizeof(host_counter_placeholder), nullptr, &err);
 
-    return (err == CL_SUCCESS);
+    if (err != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] Output buffer pre-allocation failed. Code: " << err << "\n";
+        system("pause");
+        return false;
+    }
+
+    return true;
 }
 
 bool allocateAndBuildVectorDag(size_t total_elements_count) {
@@ -131,6 +169,9 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     g_dagBufferPart2 = clCreateBuffer(g_clContext, CL_MEM_READ_ONLY, half_bytes_size, nullptr, &err2);
 
     if (err1 != CL_SUCCESS || err2 != CL_SUCCESS) {
+        std::cerr << "\n[GPU ERROR] DAG VRAM Allocation failed. Part1: " << err1 << " Part2: " << err2 << "\n";
+        std::cerr << "Your GPU may be out of free memory. Close other apps/games.\n";
+        system("pause");
         g_is_dag_building = false;
         return false;
     }
