@@ -1,19 +1,12 @@
-name: Production Release Pipeline
+name: Continuous Release Packaging Pipeline
 
 on:
   push:
-    # 🚀 PUSH TRIGGERS: Runs a check on every main/master branch update
-    branches: [ "main", "master" ]
-    # 🚀 TAG TRIGGER: Automatically generates a downloadable zip release on version numbers
-    tags:
-      - 'v*'
-  pull_request:
     branches: [ "main", "master" ]
 
 jobs:
   build-and-release:
     runs-on: windows-latest
-    # 🚀 FIX: This block explicitly authorizes the runner to write your Release assets
     permissions:
       contents: write
 
@@ -35,30 +28,21 @@ jobs:
     - name: Compile Release Binary
       run: cmake --build build --config Release
 
-    - name: Verify Binary Output
-      run: |
-        if (Test-Path "build/elleauto.exe") {
-            echo "Success: elleauto.exe compiled cleanly!"
-        } else {
-            echo "Error: Output binary missing."
-            exit 1
-        }
-
-    - name: Package Artifacts
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Package Rolling Artifacts
       run: |
         mkdir dist
         copy build\elleauto.exe dist\
         copy src\autolykos.cl dist\
-        compress-archive -Path dist\* -DestinationPath elleauto-windows-x64.zip
+        compress-archive -Path dist\* -DestinationPath elleauto-rolling-x64.zip
 
-    - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Update Continuous Rolling Release
       uses: softprops/action-gh-release@v2
       with:
-        files: elleauto-windows-x64.zip
-        name: Release ${{ github.ref_name }}
+        files: elleauto-rolling-x64.zip
+        name: "Continuous Rolling Build"
+        tag_name: "rolling"     # 🚀 Key: This pins the zip to a permanent rolling asset marker
+        make_latest: true
         draft: false
-        prerelease: false
+        prerelease: true        # Marked as prerelease so it stays clean
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
