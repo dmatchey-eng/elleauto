@@ -263,6 +263,16 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
 }
 
 int main() {
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut != INVALID_HANDLE_VALUE) {
+        DWORD dwMode = 0;
+        if (GetConsoleMode(hOut, &dwMode)) {
+            // Hexadecimal code for ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x0004)
+            // Using the raw number ensures it compiles perfectly on any environment
+            dwMode |= 0x0004; 
+            SetConsoleMode(hOut, dwMode);
+        }
+    }
     initWinsock();
     MinerConfig config;
 
@@ -286,6 +296,7 @@ int main() {
 
         while (is_mining_running) {
             std::cout << "\033[2J\033[1;1H"; 
+            
             std::cout << "=========================================================\n";
             std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
             std::cout << "=========================================================\n";
