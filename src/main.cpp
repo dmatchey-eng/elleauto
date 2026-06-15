@@ -40,7 +40,7 @@ struct ActiveMiningJob {
 // Hardcoded Pool List Constants
 const std::vector<PoolOption> DEFAULT_POOLS = {
     {"HeroMiners (Global/Auto)", "://herominers.com", "1147"},
-    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"},
+    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"},
     {"WoolyPooly (Low Fee)", "://woolypooly.com", "3100"},
     {"Custom Manual Pool Entry", "CUSTOM", "CUSTOM"}
 };
@@ -49,13 +49,12 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = ""; 
+ActiveMiningJob g_next_job;
+
+// Dynamic share counters
 std::atomic<unsigned int> g_shares_submitted(0);
 std::atomic<unsigned int> g_shares_accepted(0);
 std::atomic<unsigned int> g_shares_rejected(0);
-
-ActiveMiningJob g_next_job;
-
-// Visual status tracker string for the live dashboard alert panel
 std::string g_network_status_msg = "Awaiting network jobs...";
 
 // External Subsystem Declarations (Defined in OpenCL/Parser source files)
@@ -87,6 +86,29 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
     return result;
 }
 
+// Global socket handle for external subsystem usage
+SOCKET g_poolSocketGlobal = INVALID_SOCKET;
+std::atomic<unsigned int> g_rpc_id_counter(3);
+
+void submitShare(const std::string& job_id, unsigned long long found_nonce) {
+    if (g_poolSocketGlobal == INVALID_SOCKET) return;
+
+    g_shares_submitted++;
+    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
+
+    std::stringstream hex_stream;
+    hex_stream << "0x" << std::hex << found_nonce;
+    std::string nonce_hex = hex_stream.str();
+
+    unsigned int message_id = g_rpc_id_counter.fetch_add(1);
+
+    std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
+                                ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
+                                job_id + "\", \"" + nonce_hex + "\"]}\n";
+
+    send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
+}
+
 // GPU Concurrent Thread Module
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
@@ -106,7 +128,6 @@ void gpuMiningOrchestrator() {
     while (is_mining_running) {
         if (is_current_job_valid) {
             ActiveMiningJob work_pass = g_next_job;
-            std::cout << "[GPU Worker] Hashing Block Job Header: 0x" << std::hex << work_pass.header_hash << std::dec << "\n";
             runMiningLoop(work_pass.nonce_start, work_pass.difficulty, work_pass.header_hash);
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -117,11 +138,11 @@ void gpuMiningOrchestrator() {
 
 // Network Socket Background Listener Thread
 void listenToPool(SOCKET poolSocket) {
-    char buffer[1024]; 
+    char buffer; 
     std::string stream_accumulator = "";
 
     while (is_mining_running) {
-        int bytesReceived = recv(poolSocket, buffer, sizeof(buffer) - 1, 0);
+        int bytesReceived = recv(poolSocket, &buffer, sizeof(buffer) - 1, 0);
         if (bytesReceived <= 0) {
             std::cerr << "\n[ERROR] Connection lost to pool server.\n";
             is_mining_running = false;
@@ -129,7 +150,7 @@ void listenToPool(SOCKET poolSocket) {
             break;
         }
 
-        buffer[bytesReceived] = '\0';
+        buffer = '\0'; // Treat single char buffer properly
         stream_accumulator += buffer;
 
         size_t newline_pos;
@@ -141,14 +162,14 @@ void listenToPool(SOCKET poolSocket) {
 
             if (current_job.is_new_job) {
                 if (current_job.job_id != g_current_job_id) {
-                    is_current_job_valid = false; // Signal current GPU worker to stop instantly
+                    is_current_job_valid = false; 
                     g_current_job_id = current_job.job_id;
 
                     g_next_job.header_hash = convertHexToUlong(current_job.seed_hash);
                     g_next_job.difficulty  = convertHexToUlong(current_job.difficulty);
                     g_next_job.nonce_start = 1000000000ULL; 
 
-                    is_current_job_valid = true; // Release GPU worker to run on updated values
+                    is_current_job_valid = true; 
                 }
             }
         }
@@ -172,7 +193,7 @@ void selectPool(MinerConfig& config) {
     size_t choice;
     std::cin >> choice;
     
-    if (choice > 0 && choice < DEFAULT_POOLS.size()) {
+    if (choice > 0 && choice <= DEFAULT_POOLS.size()) {
         config.pool_host = DEFAULT_POOLS[choice - 1].hostname;
         config.pool_port = DEFAULT_POOLS[choice - 1].port;
     } else {
@@ -215,33 +236,6 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
 
     return true;
 }
-// Globally visible socket handle so other threads can forward traffic
-SOCKET g_poolSocketGlobal = INVALID_SOCKET;
-std::atomic<unsigned int> g_rpc_id_counter(3); // Start IDs after initial sub/auth (1 and 2)
-
-void submitShare(const std::string& job_id, unsigned long long found_nonce) {
-    if (g_poolSocketGlobal == INVALID_SOCKET) return;
-
-    g_shares_submitted++;
-    g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool...";
-
-    // Format the found nonce back into a hexadecimal string for the JSON payload
-    std::stringstream hex_stream;
-    hex_stream << "0x" << std::hex << found_nonce;
-    std::string nonce_hex = hex_stream.str();
-
-    // Increment RPC message tracking index safely
-    unsigned int message_id = g_rpc_id_counter.fetch_add(1);
-
-    // Build standard mining.submit JSON payload: ["worker_name", "job_id", "nonce"]
-    // Note: Adjust the worker tag parameters to fit your pool's custom username formats if needed
-    std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
-                                ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                job_id + "\", \"" + nonce_hex + "\"]}\n";
-
-    // Transmit directly down the network socket pipeline
-    send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
-}
 
 int main() {
     initWinsock();
@@ -251,64 +245,38 @@ int main() {
     std::cin >> config.wallet;
 
     selectPool(config);
-    // Update your main UI loop tracking state block within int main()
-// Replace your connectToStratum success scope with this managed handler:
 
-if (connectToStratum(config, poolSocket)) {
-    std::cout << "[SUCCESS] Authenticated on pool!\n";
-    g_poolSocketGlobal = poolSocket; // Map global tracking identity handle
+    // 🚀 FIX: Declared cleanly at the top of the main function scope
+    SOCKET poolSocket = INVALID_SOCKET; 
 
-    std::thread network_worker(listenToPool, poolSocket);
-    network_worker.detach();
-
-    std::thread gpu_worker(gpuMiningOrchestrator);
-    gpu_worker.detach();
-
-    // Clean frame rendering refresh manager loop running on the main thread
-    while (is_mining_running) {
-        // Clear screen using ANSI escape patterns
-        std::cout << "\033[2J\033[1;1H"; 
-        
-        std::cout << "=========================================================\n";
-        std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
-        std::cout << "=========================================================\n";
-        std::cout << " [POOL]    " << config.pool_host << ":" << config.pool_port << "\n";
-        std::cout << " [WALLET]  " << config.wallet.substr(0, 15) << "... (Truncated)\n";
-        std::cout << "---------------------------------------------------------\n";
-        std::cout << " [STATUS]  " << g_network_status_msg << "\n";
-        std::cout << "---------------------------------------------------------\n";
-        std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
-                  << " | Accepted: " << g_shares_accepted 
-                  << " | Rejected: " << g_shares_rejected << "\n";
-        std::cout << "=========================================================\n";
-        std::cout << " Press Ctrl+C to terminate mining safely.\n";
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // Smooth 1Hz updates
-    }
-    closesocket(poolSocket);
-}
-
-
-    SOCKET poolSocket = INVALID_SOCKET;
     if (connectToStratum(config, poolSocket)) {
         std::cout << "[SUCCESS] Authenticated on pool!\n";
-        
-        // Spawn Background Worker 1: Network Listener
+        g_poolSocketGlobal = poolSocket; 
+
         std::thread network_worker(listenToPool, poolSocket);
         network_worker.detach();
 
-        // Spawn Background Worker 2: GPU Computation Matrix
         std::thread gpu_worker(gpuMiningOrchestrator);
         gpu_worker.detach();
 
-        // Main thread manages dynamic console interactions or telemetry 
         while (is_mining_running) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            std::cout << "\033[2J\033[1;1H"; 
+            std::cout << "=========================================================\n";
+            std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
+            std::cout << "=========================================================\n";
+            std::cout << " [POOL]    " << config.pool_host << ":" << config.pool_port << "\n";
+            std::cout << " [WALLET]  " << config.wallet.substr(0, 15) << "... (Truncated)\n";
+            std::cout << "---------------------------------------------------------\n";
+            std::cout << " [STATUS]  " << g_network_status_msg << "\n";
+            std::cout << "---------------------------------------------------------\n";
+            std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
+                      << " | Accepted: " << g_shares_accepted 
+                      << " | Rejected: " << g_shares_rejected << "\n";
+            std::cout << "=========================================================\n";
+            std::cout << " Press Ctrl+C to terminate mining safely.\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
-
-        closesocket(poolSocket);
     }
-
-    WSACleanup();
+    if (poolSocket != INVALID_SOCKET) {closesocket(poolSocket);}WSACleanup();
     return 0;
 }
