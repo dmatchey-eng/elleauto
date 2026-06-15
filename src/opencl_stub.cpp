@@ -1,25 +1,23 @@
 #include <windows.h>
 
-// This empty export stub satisfies the Windows linker requirements during the cloud build
-extern "C" __declspec(dllexport) void clGetPlatformIDs() {}
-extern "C" __declspec(dllexport) void clGetPlatformInfo() {}
-extern "C" __declspec(dllexport) void clGetDeviceIDs() {}
-extern "C" __declspec(dllexport) void clGetDeviceInfo() {}
-extern "C" __declspec(dllexport) void clCreateContext() {}
-extern "C" __declspec(dllexport) void clCreateCommandQueueWithProperties() {}
-extern "C" __declspec(dllexport) void clCreateProgramWithSource() {}
-extern "C" __declspec(dllexport) void clBuildProgram() {}
-extern "C" __declspec(dllexport) void clGetProgramBuildInfo() {}
-extern "C" __declspec(dllexport) void clCreateKernel() {}
-extern "C" __declspec(dllexport) void clCreateBuffer() {}
-extern "C" __declspec(dllexport) void clEnqueueWriteBuffer() {}
-extern "C" __declspec(dllexport) void clEnqueueNDRangeKernel() {}
-extern "C" __declspec(dllexport) void clEnqueueReadBuffer() {}
-extern "C" __declspec(dllexport) void clReleaseKernel() {}
-extern "C" __declspec(dllexport) void clReleaseMemObject() {}
-extern "C" __declspec(dllexport) void clReleaseProgram() {}
-extern "C" __declspec(dllexport) void clReleaseCommandQueue() {}
-extern "C" __declspec(dllexport) void clReleaseContext() {}
-
-// 🚀 FIX: Added the missing argument setter function export hook
-extern "C" __declspec(dllexport) void clSetKernelArg() {}
+// 🚀 FIX: Renamed symbols so they satisfy the linker but never hijack real OS runtime DLL commands
+extern "C" __declspec(dllexport) void clGetPlatformIDs_stub() {}
+extern "C" __declspec(dllexport) void clGetPlatformInfo_stub() {}
+extern "C" __declspec(dllexport) void clGetDeviceIDs_stub() {}
+extern "C" __declspec(dllexport) void clGetDeviceInfo_stub() {}
+extern "C" __declspec(dllexport) void clCreateContext_stub() {}
+extern "C" __declspec(dllexport) void clCreateCommandQueueWithProperties_stub() {}
+extern "C" __declspec(dllexport) void clCreateProgramWithSource_stub() {}
+extern "C" __declspec(dllexport) void clBuildProgram_stub() {}
+extern "C" __declspec(dllexport) void clGetProgramBuildInfo_stub() {}
+extern "C" __declspec(dllexport) void clCreateKernel_stub() {}
+extern "C" __declspec(dllexport) void clCreateBuffer_stub() {}
+extern "C" __declspec(dllexport) void clEnqueueWriteBuffer_stub() {}
+extern "C" __declspec(dllexport) void clEnqueueNDRangeKernel_stub() {}
+extern "C" __declspec(dllexport) void clEnqueueReadBuffer_stub() {}
+extern "C" __declspec(dllexport) void clReleaseKernel_stub() {}
+extern "C" __declspec(dllexport) void clReleaseMemObject_stub() {}
+extern "C" __declspec(dllexport) void clReleaseProgram_stub() {}
+extern "C" __declspec(dllexport) void clReleaseCommandQueue_stub() {}
+extern "C" __declspec(dllexport) void clReleaseContext_stub() {}
+extern "C" __declspec(dllexport) void clSetKernelArg_stub() {}
