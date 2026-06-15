@@ -48,7 +48,9 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
 // Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
-std::string g_current_job_id = ""; 
+// 🚀 FIX: This forces the string variable memory signature to remain visible to opencl_manager.cpp
+std::string g_current_job_id = "0"; 
+
 ActiveMiningJob g_next_job;
 
 std::atomic<int> g_dag_progress(0);
