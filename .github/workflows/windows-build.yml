@@ -2,9 +2,7 @@ name: Production Release Pipeline
 
 on:
   push:
-    # Trigger verification builds on regular branch pushes
     branches: [ "main", "master" ]
-    # Trigger an actual downloadable binary Release when you push a version tag
     tags:
       - 'v*'
   pull_request:
@@ -18,23 +16,25 @@ jobs:
     - name: Checkout Repository Files
       uses: actions/checkout@v4
 
+    # 🚀 FIX: This step sets up the raw MSVC (cl.exe) environment paths natively
+    - name: Set up MSVC Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
     - name: Set up CMake
       uses: jwlawson/actions-setup-cmake@v2
       with:
         cmake-version: '3.25.x'
 
     - name: Configure CMake
-      # Forces the Visual Studio 2022 64-bit generator environment
-      run: cmake -G "Visual Studio 17 2022" -A x64 -B build -S .
+      # By using Ninja, we skip the Visual Studio IDE instance lookup entirely
+      run: cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -B build -S .
 
     - name: Compile Release Binary
-      # Compiles with max compiler speed optimizations enabled
       run: cmake --build build --config Release
 
     - name: Verify Binary Output
-      # Basic sanity check script step ensuring the file actually exists before packaging
       run: |
-        if (Test-Path "build/Release/elleauto.exe") {
+        if (Test-Path "build/elleauto.exe") {
             echo "Success: elleauto.exe compiled cleanly!"
         } else {
             echo "Error: Output binary missing."
@@ -42,11 +42,10 @@ jobs:
         }
 
     - name: Package Artifacts
-      # Only runs if a version tag (v1.0.0) was pushed to freeze a build asset
       if: startsWith(github.ref, 'refs/tags/')
       run: |
         mkdir dist
-        copy build\Release\elleauto.exe dist\
+        copy build\elleauto.exe dist\
         copy src\autolykos.cl dist\
         compress-archive -Path dist\* -DestinationPath elleauto-windows-x64.zip
 
