@@ -133,6 +133,23 @@ void listenToPool(SOCKET poolSocket) {
             if (current_job.is_new_job) {
                 // Background telemetry printing or hardware adjustment updates go here
                 // Note: We avoid direct cout logs here to prevent clashing with the UI dashboard
+
+                // Inside your network string routing routine when current_job.is_new_job == true:
+if (current_job.job_id != g_current_job_id) {
+    
+    // 🛑 1. Break the active GPU mining loop instantly by invalidating the state
+    is_current_job_valid = false; 
+    g_current_job_id = current_job.job_id;
+
+    // 🔄 2. Convert and overwrite the globally tracked parameters safely
+    g_next_job.header_hash = convertHexToUlong(current_job.seed_hash);
+    g_next_job.difficulty  = convertHexToUlong(current_job.difficulty);
+    g_next_job.nonce_start = 1000000000ULL; // Reset search range baseline for new block
+
+    // 🏃 3. Authorize the loop to start executing immediately on the new values
+    is_current_job_valid = true; 
+}
+
             }
         }
     }
