@@ -52,7 +52,7 @@ std::string g_current_job_id = "0";
 
 ActiveMiningJob g_next_job;
 // Explicitly initialize the dynamic RPC message counter baseline here
-std::atomic<unsigned int> g_rpc_id_counter(100); 
+std::atomic<unsigned int> g_rpc_id_counter(3); 
 
 // Track the persistent dynamic extra_nonce2 locally
 std::atomic<unsigned long long> g_extra_nonce2_counter(0);
@@ -120,13 +120,16 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
     
-    // Uses our new globally instantiated config block directly
+    // 🚀 FIX: Added a 64-character zero-padded string placeholder to satisfy the 5th parameter ("solution")!
+    // Strict Ergo array schema: ["worker", "job_id", "extra_nonce2", "nonce", "solution"]
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
+                                clean_job_id + "\", \"" + extra_nonce2_hex + "\", \"" + nonce_hex + "\", "
+                                "\"0000000000000000000000000000000000000000000000000000000000000000\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
+
 
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
