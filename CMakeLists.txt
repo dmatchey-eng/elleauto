@@ -6,7 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(OpenCL REQUIRED)
 
 include_directories(${OpenCL_INCLUDE_DIRS})
-add_executable(elleauto src/main.cpp)
 
-# Link both OpenCL and Windows Sockets library
+# Added src/stratum_parser.cpp to compilation sources
+add_executable(elleauto 
+    src/main.cpp 
+    src/stratum_parser.cpp
+)
+
 target_link_libraries(elleauto PRIVATE OpenCL::OpenCL ws2_32)
