@@ -20,3 +20,6 @@ extern "C" __declspec(dllexport) void clReleaseMemObject() {}
 extern "C" __declspec(dllexport) void clReleaseProgram() {}
 extern "C" __declspec(dllexport) void clReleaseCommandQueue() {}
 extern "C" __declspec(dllexport) void clReleaseContext() {}
+
+// 🚀 FIX: Added the missing argument setter function export hook
+extern "C" __declspec(dllexport) void clSetKernelArg() {}
