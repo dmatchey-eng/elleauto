@@ -13,12 +13,6 @@ extern std::atomic<int> g_dag_progress;
 extern std::atomic<bool> g_is_dag_building;
 extern std::atomic<bool> is_mining_running;
 
-// 🚀 NEW FLAG: Set to true when a mining loop is active. 
-// Set to false to instantly interrupt and clear the execution state.
-std::atomic<bool> is_current_job_valid(false); 
-
-// Track the active job ID to avoid double-processing duplicate packets
-std::string g_current_job_id = ""; 
 // Global OpenCL handles
 cl_context g_clContext = nullptr;
 cl_command_queue g_clQueue = nullptr;
@@ -59,22 +53,27 @@ bool initOpenCL() {
     cl_device_id targetDevice = nullptr;
     bool foundAMD = false;
 
+    // =========================================================================
+    // 🔍 PLATFORM DISCOVERY LOOP (Around Line 70)
+    // =========================================================================
     for (auto platform : platforms) {
-        char platformName[256];
+        char platformName[128];
         clGetPlatformInfo(platform, CL_PLATFORM_NAME, sizeof(platformName), platformName, nullptr);
         std::string platStr(platformName);
 
         if (platStr.find("AMD") != std::string::npos || platStr.find("Advanced Micro Devices") != std::string::npos) {
             cl_uint deviceCount;
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &deviceCount);
+            
             std::vector<cl_device_id> devices(deviceCount);
             clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, deviceCount, devices.data(), nullptr);
 
             for (auto device : devices) {
-                char deviceName[256];
+                char deviceName[128];
                 clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
                 std::string devStr(deviceName);
 
+                // Target standard Polaris 20 / Ellesmere architecture profiles
                 if (devStr.find("580") != std::string::npos || devStr.find("Ellesmere") != std::string::npos) {
                     targetDevice = device;
                     foundAMD = true;
@@ -91,7 +90,8 @@ bool initOpenCL() {
     g_clContext = clCreateContext(nullptr, 1, &targetDevice, nullptr, nullptr, &err);
     g_clQueue = clCreateCommandQueueWithProperties(g_clContext, targetDevice, nullptr, &err);
 
-    std::string kernelSource = readKernelSource("src/autolykos.cl");
+    // FIX: Look directly for "autolykos.cl" since CMake copies it automatically
+    std::string kernelSource = readKernelSource("autolykos.cl"); 
     if (kernelSource.empty()) return false;
 
     const char* sourcePtr = kernelSource.c_str();
@@ -120,12 +120,10 @@ bool initOpenCL() {
     return (err == CL_SUCCESS);
 }
 
-// Memory setup tailored to vectorized 256-bit wide ulong4 lanes
 bool allocateAndBuildVectorDag(size_t total_elements_count) {
     g_is_dag_building = true;
     cl_int err1, err2;
 
-    // Split size accounting for ulong4 layouts (4 elements per vector group)
     size_t half_elements = total_elements_count / 2;
     size_t half_bytes_size = half_elements * sizeof(unsigned long long);
 
@@ -137,7 +135,6 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
         return false;
     }
 
-    // Allocation pipeline feeding progress directly to the UI layer
     std::vector<unsigned long long> host_chunk(half_elements, 0x123456789ABCDEFULL);
     
     g_dag_progress = 25;
@@ -154,15 +151,11 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
 void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input) {
     cl_int err;
     unsigned long long nonce_iterator = initial_nonce;
-    
-    // Elements bound adjusted for vector boundaries inside the kernel signature
     unsigned long long half_elements_vector = 200000000; 
 
-    // Reset solution counters on hardware memory space
     unsigned int reset_counter = 0;
     clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
 
-    // Bind optimized kernel targets 
     clSetKernelArg(g_miningKernel, 0, sizeof(cl_mem), &g_dagBufferPart1);
     clSetKernelArg(g_miningKernel, 1, sizeof(cl_mem), &g_dagBufferPart2);
     clSetKernelArg(g_miningKernel, 2, sizeof(unsigned long long), &half_elements_vector);
@@ -172,52 +165,35 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
     clSetKernelArg(g_miningKernel, 6, sizeof(cl_mem), &g_devNonces);
     clSetKernelArg(g_miningKernel, 7, sizeof(cl_mem), &g_devCounter);
 
-    // Execution layout matching Wavefront dimensions (multiples of 64)
     size_t global_work_size = 64 * 1024;
     size_t local_work_size = 256;
 
-    while (is_mining_running && !g_is_dag_building) {
-        // Update current iterator index argument rapidly per loop cycle
+    extern std::atomic<bool> is_current_job_valid;
+
+    while (is_mining_running && is_current_job_valid && !g_is_dag_building) {
         clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
 
         err = clEnqueueNDRangeKernel(g_clQueue, g_miningKernel, 1, nullptr, &global_work_size, &local_work_size, 0, nullptr, nullptr);
         if (err != CL_SUCCESS) break;
 
-        // Fast synchronous check back on solution memory tags
         unsigned int found_count = 0;
         clEnqueueReadBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(found_count), &found_count, 0, nullptr, nullptr);
 
         if (found_count > 0) {
             unsigned long long solved_nonce = 0;
             clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, sizeof(solved_nonce), &solved_nonce, 0, nullptr, nullptr);
-            
-            // Re-zero card counters instantly to clear lane for next cycles
             clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
             
-            // TODO: Trigger mining.submit network packet containing solved_nonce
+            extern std::string g_current_job_id;
+            void submitShare(const std::string& job_id, unsigned long long found_nonce);
+            submitShare(g_current_job_id, solved_nonce);
         }
-        // Inside src/opencl_manager.cpp -> runMiningLoop()
-    if (found_count > 0) {
-    unsigned long long solved_nonce = 0;
-    clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, sizeof(solved_nonce), &solved_nonce, 0, nullptr, nullptr);
-    
-    // Instantly flash card tracking registries back to zero
-    clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
-    
-    // Call our newly added submission utility cross-thread handle
-    extern std::string g_current_job_id;
-    void submitShare(const std::string& job_id, unsigned long long found_nonce);
-    
-    submitShare(g_current_job_id, solved_nonce);
-}
-
 
         nonce_iterator += global_work_size;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Yield slightly to prevent system display lag
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
-// Clean termination sequence releasing standard context allocations
 void shutdownOpenCL() {
     if (g_miningKernel) clReleaseKernel(g_miningKernel);
     if (g_dagBufferPart1) clReleaseMemObject(g_dagBufferPart1);
