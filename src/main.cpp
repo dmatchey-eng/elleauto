@@ -272,7 +272,7 @@ int main() {
             std::cout << "---------------------------------------------------------\n";
             std::cout << " [STATUS]  " << g_network_status_msg << "\n";
             std::cout << "---------------------------------------------------------\n";
-            std::cout << " [SHARES]  Submitted: " << g_shares_shares_submitted 
+            std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
                       << " | Accepted: " << g_shares_accepted 
                       << " | Rejected: " << g_shares_rejected << "\n";
             std::cout << "=========================================================\n";
