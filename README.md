@@ -12,7 +12,7 @@ If you are just interested in running the miner on your Windows 10 rig, you do n
 2. **Extract Files**: Extract the compressed folder contents to a directory of your choice on your local machine. 
    * *Note: Ensure both `elleauto.exe` and `autolykos.cl` remain in the **same folder** together.*
 3. **Configure Windows Defender (False Positive)**: Custom cryptographic applications are frequently flagged as false positives by antivirus scanners. Add a local folder exclusion in Windows Security to prevent the OS from interrupting the application.
-4. **Launch the Miner**: Double-click `elleauto.exe`, paste your public Ergo wallet receiving address, select your preferred regional mining pool from the interactive menu, and let the hardware loop initialize.
+4. **Launch the Miner**: Double-click `elleauto.exe`, paste your public Ergo wallet receiving address (right click), select your preferred regional mining pool from the interactive menu, and let the hardware loop initialize. It will create a log file in the same folder named network_log.txt if you want to check for incoming packets.
 
 ---
 
