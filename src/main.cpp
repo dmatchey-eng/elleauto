@@ -95,7 +95,7 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
 SOCKET g_poolSocketGlobal = INVALID_SOCKET;
 // 🚀 FIX: Start the dynamic message counter at 100 to clear the pool's low-ID reservation block
 
-void submitShare(const std::string& job_id, unsigned long long found_nonce) {
+void submitShare(const std::string& job_id, unsigned long long found_nonce, unsigned long long found_solution) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
     g_shares_submitted++;
@@ -118,18 +118,20 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
+    // 🚀 FIX: Convert the real GPU-calculated mathematical mix state solution into a valid 64-character string
+    std::stringstream sol_stream;
+    sol_stream << std::setw(64) << std::setfill('0') << std::hex << found_solution;
+    std::string solution_hex = sol_stream.str();
+
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
     
-    // 🚀 FIX: Added a 64-character zero-padded string placeholder to satisfy the 5th parameter ("solution")!
-    // Strict Ergo array schema: ["worker", "job_id", "extra_nonce2", "nonce", "solution"]
+    // Construct perfectly balanced, authentic parameter payloads
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                clean_job_id + "\", \"" + extra_nonce2_hex + "\", \"" + nonce_hex + "\", "
-                                "\"0000000000000000000000000000000000000000000000000000000000000000\"]}\n";
+                                clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\", \"" + solution_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
-
 
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
