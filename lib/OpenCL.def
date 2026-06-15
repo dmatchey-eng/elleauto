@@ -1,0 +1,23 @@
+LIBRARY OpenCL
+EXPORTS
+    clGetPlatformIDs
+    clGetPlatformInfo
+    clGetDeviceIDs
+    clGetDeviceInfo
+    clCreateContext
+    clCreateCommandQueueWithProperties
+    clCreateProgramWithSource
+    clBuildProgram
+    clGetProgramBuildInfo
+    clCreateKernel
+    clCreateBuffer
+    clEnqueueWriteBuffer
+    clEnqueueNDRangeKernel
+    clEnqueueReadBuffer
+    clReleaseKernel
+    clReleaseMemObject
+    clReleaseProgram
+    clReleaseCommandQueue
+    clReleaseContext
+    clSetKernelArg
+    clFinish
