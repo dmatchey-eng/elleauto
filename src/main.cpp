@@ -51,6 +51,7 @@ std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = "0"; 
 
 ActiveMiningJob g_next_job;
+    MinerConfig config;
 
 std::atomic<int> g_dag_progress(0);
 std::atomic<bool> g_is_dag_building(false);
@@ -95,7 +96,7 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     g_shares_submitted++;
     g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
 
-    // 🚀 FIX: Strip out any accidental wrapping quotes from the Job ID string
+    // Sanitizing the Job ID from any accidental double quotes
     std::string clean_job_id = job_id;
     while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) {
         clean_job_id.erase(0, 1);
@@ -111,14 +112,16 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
 
-    // Build the perfectly sanitized, flat JSON-RPC array
+    // 🚀 FIX: Query your actual wallet config variable instead of hardcoding "elleauto-worker"!
+    extern MinerConfig config; // Access the main runtime configuration struct block
+    
+    // Construct the strict stratum parameters format: [wallet, job_id, extra_nonce2, nonce]
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
-                                ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
+                                ", \"method\": \"mining.submit\", \"params\": [\"" + 
+                                config.wallet + "\", \"" + clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
-
 
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
@@ -278,7 +281,6 @@ int main() {
         }
     }
     initWinsock();
-    MinerConfig config;
 
     std::cout << "Enter your Ergo Wallet Address: ";
     std::cin >> config.wallet;
