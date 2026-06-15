@@ -113,10 +113,10 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
 
-    // 🚀 FIX: Query your actual wallet config variable instead of hardcoding "elleauto-worker"!
-    extern MinerConfig config; // Access the main runtime configuration struct block
+    extern MinerConfig config;
     
-    // Construct the strict stratum parameters format: [wallet, job_id, extra_nonce2, nonce]
+    // 🚀 FIX: Use completely native escaped quotes (\") to eliminate array parsing shifts.
+    // This forms a perfectly rigid JSON array structure: ["wallet", "job_id", "00000000", "nonce"]
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"" + 
                                 config.wallet + "\", \"" + clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
