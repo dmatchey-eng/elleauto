@@ -102,7 +102,6 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
     g_shares_submitted++;
     g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
 
-    // 1. Sanitize the Job ID from double quotes
     std::string clean_job_id = job_id;
     while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) {
         clean_job_id.erase(0, 1);
@@ -111,24 +110,21 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce) {
         clean_job_id.pop_back();
     }
 
-    // 2. 🚀 FIX: Dynamically increment and format extra_nonce2 to exactly 8 characters hex (4 bytes)
     unsigned long long active_ext_nonce2 = g_extra_nonce2_counter.fetch_add(1);
     std::stringstream ext2_stream;
     ext2_stream << std::setw(8) << std::setfill('0') << std::hex << active_ext_nonce2;
     std::string extra_nonce2_hex = ext2_stream.str();
 
-    // 3. Format the found nonce to exactly 16 hex characters, zero-padded, no "0x"
     std::stringstream hex_stream;
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
     
-    // 4. 🚀 FIX: Revert worker parameter to "elleauto-worker" as authorized in id:2 
-    // to bypass pool node string length buffer overflows.
+    // Uses our new globally instantiated config block directly
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"elleauto-worker\", \"" + 
-                                clean_job_id + "\", \"" + extra_nonce2_hex + "\", \"" + nonce_hex + "\"]}\n";
+                                clean_job_id + "\", \"00000000\", \"" + nonce_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
