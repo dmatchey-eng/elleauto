@@ -1,70 +1,61 @@
 # elleauto v1.0
 
-`elleauto` is a high-performance, multithreaded cryptocurrency mining application compiled natively for Windows 10. It is specifically engineered to execute the memory-hard Autolykos v2 Proof-of-Work algorithm (Ergo Platform) utilizing **The Autolykos v2 OpenCL Hardware Kernel** optimized for the **AMD Radeon RX 580 8GB (Ellesmere)** Polaris architecture.
+A lightweight, multithreaded cryptocurrency miner built natively for Windows 10. This project targets the memory-hard **Autolykos v2 (Ergo Platform)** proof-of-work algorithm, utilizing an optimized OpenCL compute kernel tailored for the **8GB AMD Radeon RX 580 (Ellesmere)**.
 
 ---
 
-## 🚀 Quick Start Instructions
+## 🏃 Quick Start
 
-If you are just interested in running the miner on your Windows 10 rig, you do not need to compile the source code manually. Follow these deployment steps:
+You do not need to compile the source code manually to use this miner. 
 
-1. **Download the Package**: Navigate to the **Releases** tab on the right side of this repository page and download the latest `elleauto-rolling-x64.zip` archive.
-2. **Extract Files**: Extract the compressed folder contents to a directory of your choice on your local machine. 
-   * *Note: Ensure both `elleauto.exe` and `autolykos.cl` remain in the **same folder** together.*
-3. **Configure Windows Defender (False Positive)**: Custom cryptographic applications are frequently flagged as false positives by antivirus scanners. Add a local folder exclusion in Windows Security to prevent the OS from interrupting the application.
-4. **Launch the Miner**: Double-click `elleauto.exe`, paste your public Ergo wallet receiving address (right click), select your preferred regional mining pool from the interactive menu, and let the hardware loop initialize. It will create a log file in the same folder named network_log.txt if you want to check for incoming packets.
-
----
-
-## 🛠️ Architecture & Optimization Technical Specs
-
-* **Vectorized VRAM Saturation (`ulong4`)**: Engineered utilizing 256-bit wide `ulong4` vectorized inputs within the OpenCL compute kernel. This strategy saturates the Polaris architecture's 256-bit memory bus width completely per clock cycle, maximizing global dataset processing speeds.
-* **WDDM Allocation Bypass (Split DAG)**: Windows 10 imposes strict allocation caps on single memory buffers. `elleauto` addresses this constraint by splitting the massive multi-gigabyte Autolykos DAG into distinct sub-allocations (`CL_MEM_READ_ONLY`) across VRAM boundaries, avoiding runtime allocations crashes.
-* **Wavefront-Aligned Asynchronous Execution**: The thread dispatch matrix leverages a global-to-local work ratio mapped directly to AMD's native 64-thread execution Wavefront configuration layout, eliminating instruction divergence.
-* **Deduplicated Multithreaded Topology**: Built on three completely asynchronous processing branches executing concurrently:
-  1. *Main UI Thread*: Drives an ANSI-escaped, responsive console telemetry performance dashboard.
-  2. *Stratum Network Thread*: Manages an uninterrupted background Winsock2 TCP stream socket listening dynamically for new block updates.
-  3. *GPU Computing Orchestrator*: Dictates low-latency OpenCL resource queue dispatch passes without locking the host environment.
+1. Go to the **Releases** tab on the right side of this repository page.
+2. Download the latest `elleauto-rolling-x64.zip` archive.
+3. Extract the contents to any folder on your PC. 
+   *(Note: `elleauto.exe` and `autolykos.cl` must remain in the same folder).*
+4. Add a local folder exclusion in **Windows Defender** to prevent false-positive security blocks.
+5. Run `elleauto.exe`, input your Ergo wallet address, select your regional pool, and press Enter.
 
 ---
 
-## 📁 Repository Directory Structure
+## 🛠️ Key Features & Architecture
+
+* **Vectorized Compute Loop**: Utilizes 256-bit wide `ulong4` vector lanes to saturate the Polaris architecture's 256-bit memory bus width per clock cycle.
+* **WDDM Buffer Splitting**: Bypasses strict Windows 10 single-buffer memory caps by dividing the multi-gigabyte DAG dataset into two separate `CL_MEM_READ_ONLY` blocks.
+* **Asynchronous Multithreading**: Decoupled into three independent execution branches to ensure zero interface or compute throttling:
+  1. *Main Thread*: Renders a static, real-time console dashboard using native Windows Virtual Terminal Processing.
+  2. *Network Thread*: Runs a low-overhead Winsock2 TCP stream socket listening for live Stratum pool changes.
+  3. *GPU Thread*: Manages low-latency OpenCL command queues and execution blocks.
+
+---
+
+## 📁 Repository Structure
 
 ```text
 elleauto/
-├── .github/
-│   └── workflows/
-│       └── windows-build.yml   <-- Continuous rolling MSBuild CI deployment script
-├── CMakeLists.txt              <-- Multi-source compiler configuration layout
-├── include/
-│   └── CL/                     <-- Isolated Khronos OpenCL development headers
-│       ├── cl.h
-│       ├── cl_platform.h
-│       └── ... (and all auxiliary system environment headers)
-└── src/
-    ├── autolykos.cl            <-- Vectorized mathematical hardware execution kernel
-    ├── main.cpp                <-- Orchestration layer, Winsock network stack, and user UI
-    ├── opencl_manager.cpp      <-- AMD Ellesmere platform discovery and context manager
-    ├── opencl_stub.cpp         <-- Virtual system stubs handling cloud compilation environments
-    └── stratum_parser.cpp      <-- Low-overhead JSON-RPC protocol token parsing hook
+├── .github/workflows/
+│   └── windows-build.yml   <-- Automated rolling release CI pipeline
+├── include/CL/              <-- Standard Khronos OpenCL development headers
+├── lib/
+│   └── OpenCL.def          <-- Module definition map for headless cloud builds
+├── src/
+│   ├── autolykos.cl        <-- Vectorized OpenCL compute kernel
+│   ├── main.cpp            <-- Thread orchestrator, UI, and network stack
+│   ├── opencl_manager.cpp  <-- AMD platform discovery and runtime memory controller
+│   └── stratum_parser.cpp  <-- Comma-delimited JSON-RPC network stream tokenizer
+└── CMakeLists.txt          <-- Standalone build configuration script
 ```
 
 ---
 
-## ⚙️ Compilation & Local Building
+## ⚙️ Building from Source
 
-To build the application from source code on a local Windows development machine environment, make sure you have CMake and Visual Studio 2022 (MSVC tools) configured, then execute the following console commands:
+To compile the miner manually from source, ensure you have CMake and Visual Studio 2022 (MSVC C++ tools) installed, then run the following commands in your terminal:
 
 ```bash
-# Initialize build directory tracking trees
+# Configure the compiler and target directories
 cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -B build -S .
 
-# Compile optimized release binary targets
+# Build the optimized executable binary
 cmake --build build --config Release
 ```
-The compiler engine will link the source segments, map the standard library definitions, and duplicate the `src/autolykos.cl` kernel asset file right into your output compilation directory automatically.
-
----
-
-## ⚖️ License
-This project is open-source. Please review the code layout structures and verify your local hardware constraints before deploying execution runs.
+*The build script will automatically generate the required linker files and copy `src/autolykos.cl` directly into your output executable directory.*
