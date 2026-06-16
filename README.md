@@ -2,16 +2,6 @@
 
 A lightweight, multithreaded cryptocurrency miner built natively for Windows 10. This project targets the memory-hard **Autolykos v2 (Ergo Platform)** proof-of-work algorithm, utilizing an optimized OpenCL compute kernel tailored explicitly for the **8GB AMD Radeon RX 580 (Ellesmere)**.
 
----
-
-## ⚠️ Important System Warning
-
-> **FALSE POSITIVE ALERTS:** Because this application contains custom cryptographic hashing code compiled from scratch on cloud runners, Windows Defender and third-party antivirus suites will flag `elleauto.exe` as a security exception (typically categorized as a generic *CoinMiner* or *Unwanted Application*). 
-> 
-> **Action Required:** Before running the software, you must create a local directory exclusion in **Windows Security / Defender Settings** for the folder where you unpack the binary. Failure to add an exclusion will cause the operating system to silently delete or block the executable upon launch.
-
----
-
 ## 🏃 Quick Start
 
 You do not need to compile the source code manually to use this miner. 
@@ -68,9 +58,9 @@ cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release -B build -S .
 # Build the optimized executable binary
 cmake --build build --config Release
 ```
-*The build script will automatically generate the required linker files from the definition map and copy `src/autolykos.cl` directly into your output executable directory.*
+*The build script will generate the required linker files and copy `src/autolykos.cl` into your output executable directory.*
 
 ---
 
 ## ⚖️ License
-This project is open-source. Please review the code layout structures and verify your local hardware constraints before deploying execution runs.
+This project is open-source. Please review the code layout structures and verify your local hardware constraints.
