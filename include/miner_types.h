@@ -25,5 +25,7 @@ extern std::string g_current_job_id;
 extern std::string g_network_status_msg;
 extern std::string g_active_pool_diff;
 extern std::string g_pool_extra_nonce1;
+extern std::atomic<bool> g_is_dag_building;
+extern std::atomic<int> g_dag_progress;
 
 #endif // MINER_TYPES_H
