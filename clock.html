@@ -107,7 +107,8 @@
     </div>
 
     <script>
-        const TRUNCATED_FIB =;
+        // FIXED: Array values are explicitly initialized to prevent browser crash
+        const TRUNCATED_FIB = [2, 5, 13, 21];
         
         const clockParts = [
             { color: '#66fcf1', baseFrequency: 0.0008, spawnRate: 0.02, decayRate: 0.015, fibModifier: TRUNCATED_FIB[0], blocks: [], currentX: 0 },
@@ -116,7 +117,6 @@
             { color: '#06d6a0', baseFrequency: 0.0018, spawnRate: 0.05, decayRate: 0.050, fibModifier: TRUNCATED_FIB[3], blocks: [], currentX: 0 }
         ];
 
-        // Part V: Specialized Intersecting Matrix Core
         const matrixCore = {
             blocks: []
         };
@@ -124,13 +124,12 @@
         const canvases = [];
         const ctxs = [];
         
-        // Initialize 5 Distinct Canvases
         for (let i = 0; i <= 4; i++) {
             const canvas = document.getElementById(`canvas-${i}`);
             canvases.push(canvas);
             ctxs.push(canvas.getContext('2d'));
             canvas.width = 800;
-            canvas.height = 100; // Increased height configuration for sharp rendering
+            canvas.height = 100; 
         }
 
         function runningEngineLoop(timestamp) {
@@ -140,7 +139,6 @@
                 const rawSway = Math.log1p(Math.abs(Math.sin(timestamp * part.baseFrequency)));
                 const operationalPhase = rawSway * part.fibModifier;
                 
-                // Track dynamic live mapping coordinate paths
                 part.currentX = canvases[i].width * (0.1 + (Math.abs(Math.sin(operationalPhase)) * 0.8));
             });
 
@@ -152,7 +150,6 @@
                 ctx.fillStyle = '#0b0c10';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Check for live frame spawns
                 if (Math.random() < part.spawnRate) {
                     part.blocks.push({
                         x: part.currentX,
@@ -160,23 +157,19 @@
                         alpha: 1.0
                     });
 
-                    // MATRIX REDIRECTION FOR TRACK V:
-                    // Identify previous track source following circular logic paths (0 jumps back to 3)
                     const prevTrackIndex = (i === 0) ? 3 : i - 1;
                     const prevTrackSource = clockParts[prevTrackIndex];
 
-                    // Allocate duplicate element to Section V
                     matrixCore.blocks.push({
-                        spawnOriginX: prevTrackSource.currentX, // Inherits starting vector from previous track position
-                        targetTrajectoryX: part.currentX,      // Intersect target tracking trajectory
-                        progress: 0.0,                         // Complete linear timeline bounds tracking 
-                        width: 20 + (part.fibModifier * 1.2),  // Derived thickness footprint
-                        color: part.color,                     // Retains duplicate signature identification
-                        decayRate: part.decayRate * 0.8        // Slightly extended operational lifetime limits
+                        spawnOriginX: prevTrackSource.currentX, 
+                        targetTrajectoryX: part.currentX,      
+                        progress: 0.0,                         
+                        width: 20 + (part.fibModifier * 1.2),  
+                        color: part.color,                     
+                        decayRate: part.decayRate * 0.8        
                     });
                 }
 
-                // Render and loop standard channels
                 for (let b = part.blocks.length - 1; b >= 0; b--) {
                     const block = part.blocks[b];
                     ctx.save();
@@ -196,29 +189,23 @@
             // --- STEP 3: RENDER THE MATRIX REVERSAL HARVESTER (PART V) ---
             const mCtx = ctxs[4];
             const mCanvas = canvases[4];
-            mCtx.fillStyle = '#11141a'; // Enhanced canvas contrast bounds separation
+            mCtx.fillStyle = '#11141a'; 
             mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
 
             for (let m = matrixCore.blocks.length - 1; m >= 0; m--) {
                 const bCore = matrixCore.blocks[m];
 
-                // INVERSE MIRROR CALCULATOR MATRIX:
-                // Move block based on its timeline progress parameter
-                // It starts exactly at the previous channel's position and travels in reverse direction
                 const totalVectorDistance = bCore.targetTrajectoryX - bCore.spawnOriginX;
                 const dynamicCurrentLocationX = bCore.spawnOriginX + (totalVectorDistance * (1.0 - bCore.progress));
 
-                // Draw the inverted reflected element
                 mCtx.save();
-                mCtx.globalAlpha = 1.0 - bCore.progress; // Fade smoothly over its timeline progression
+                mCtx.globalAlpha = 1.0 - bCore.progress; 
                 mCtx.fillStyle = bCore.color;
                 mCtx.fillRect(dynamicCurrentLocationX - (bCore.width / 2), 0, bCore.width, mCanvas.height);
                 mCtx.restore();
 
-                // Increment path progress over time
                 bCore.progress += bCore.decayRate;
 
-                // Safely deallocate completed timeline paths
                 if (bCore.progress >= 1.0) {
                     matrixCore.blocks.splice(m, 1);
                 }
