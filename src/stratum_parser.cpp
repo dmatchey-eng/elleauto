@@ -11,8 +11,9 @@ struct StratumJob {
     bool is_new_job = false;
 };
 
-// Global tracking string for fallback difficulty parameters
+// 🚀 FIX 1: Globally tracked string variables to hold the pool's actual assigned configurations
 std::string g_active_pool_diff = "1";
+std::string g_pool_extra_nonce1 = "0000"; // Fallback placeholder if parse fails
 
 std::string cleanToken(const std::string& token) {
     std::string clean = token;
@@ -28,19 +29,23 @@ std::string cleanToken(const std::string& token) {
 StratumJob parseStratumLine(const std::string& line) {
     StratumJob job;
 
-    if (line.find("\"id\":1") != std::string::npos && line.find("\"result\"") != std::string::npos) return job;
+    // 🚀 FIX 2: Parse packet 1 to grab your custom ExtraNonce1 assignment string ("1bb5")
+    if (line.find("\"id\":1") != std::string::npos && line.find("\"result\"") != std::string::npos) {
+        size_t result_pos = line.find("\"result\":[");
+        if (result_pos != std::string::npos) {
+            std::string inner_res = line.substr(result_pos + 9);
+            std::stringstream ss(inner_res);
+            std::string t1, t2;
+            std::getline(ss, t1, ','); // Skip null
+            std::getline(ss, t2, ','); // This holds your true ExtraAnonce1 token string!
+            g_pool_extra_nonce1 = cleanToken(t2);
+        }
+        return job;
+    }
+    
     if (line.find("\"id\":2") != std::string::npos && line.find("\"result\":true") != std::string::npos) return job;
 
-    if (line.find("\"result\":true") != std::string::npos && line.find("\"error\":null") != std::string::npos) {
-        if (line.find("\"id\":1") == std::string::npos && line.find("\"id\":2") == std::string::npos) {
-            extern std::atomic<unsigned int> g_shares_accepted;
-            extern std::string g_network_status_msg;
-            g_shares_accepted++;
-            g_network_status_msg = "✅ [SHARE ACCEPTED] Pool verified solution block!";
-            return job;
-        }
-    }
-
+    // Keep the rest of your set_difficulty and mining.notify loops exactly the same below...
     if (line.find("\"method\":\"mining.set_difficulty\"") != std::string::npos) {
         size_t params_pos = line.find("\"params\":[");
         if (params_pos != std::string::npos) {
