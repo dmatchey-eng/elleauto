@@ -117,6 +117,20 @@ void initWinsock() {
     }
 }
 
+StratumJob parseStratumLine(const std::string& line);
+bool initOpenCL();
+bool allocateAndBuildVectorDag(size_t total_elements_count);
+void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficulty, HostUlong4 header_hash_input);
+void shutdownOpenCL();
+
+void initWinsock() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "[ERROR] Winsock initialization failed.\n";
+        exit(1);
+    }
+}
+
 void submitShare(const std::string& job_id, unsigned long long found_nonce, HostUlong4 found_solution) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
