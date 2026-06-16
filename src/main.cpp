@@ -161,13 +161,11 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce, Host
     std::stringstream hex_stream;
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << big_endian_nonce;
     std::string nonce_hex = hex_stream.str();
-
-    // 🚀 FIXED 2: Correctly swap variables and feed them straight into the text layout stream
     std::stringstream sol_stream;
-    sol_stream << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s0)
-               << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s1)
+    sol_stream << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s3)
                << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s2)
-               << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s3);
+               << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s1)
+               << std::setw(16) << std::setfill('0') << std::hex << _byteswap_uint64(found_solution.s0);
     std::string solution_hex = sol_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
