@@ -104,8 +104,7 @@ bool initOpenCL() {
     g_clContext = clCreateContext(nullptr, 1, &active_device, nullptr, nullptr, &err);
     if (err != CL_SUCCESS) return false;
 
-    // Command queue generation (Defaulting backward-compatible flags safely)
-    g_clQueue = clCreateCommandQueue(g_clContext, active_device, 0, &err);
+    g_clQueue = clCreateCommandQueueWithProperties(g_clContext, active_device, nullptr, &err);
     if (err != CL_SUCCESS) return false;
 
     // Allocation blocks for dynamic share counters and nonces output storage arrays
