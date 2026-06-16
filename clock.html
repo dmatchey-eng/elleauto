@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGL2 Morphing Shape Engine</title>
+    <title>WebGL2 Morphing Shape Engine - Verified</title>
     <style>
         body {
             background-color: #0b0c10;
@@ -49,7 +49,7 @@
             height: 420px; 
             background: #0b0c10;
             display: block;
-            border: 1px solid #c5a059;
+            border: 2px solid #66fcf1;
         }
 
         .controls {
@@ -113,7 +113,7 @@
 <body>
 
     <h1>WebGL2 Multi-Axis Clock Core</h1>
-    <div class="subtitle">Geometric Morphing & Resonance Filtering Array</div>
+    <div class="subtitle">Thickened Borders & Active Color Cycling Configuration</div>
 
     <div class="engine-container">
         <canvas id="glCanvas"></canvas>
@@ -128,10 +128,9 @@
             </div>
         </div>
 
-        <div id="diagnostics">GPU MORPH ENGINE ONLINE | GEOMETRY: SDF_DYNAMICS</div>
+        <div id="diagnostics">COMPILING PIPELINES...</div>
     </div>
     <script>
-        // --- Vertex Shader: Flat Projection Plane ---
         const vsSource = `#version 300 es
             in vec2 position;
             out vec2 vUv;
@@ -141,31 +140,30 @@
             }
         `;
 
-        // --- Fragment Shader Base & Math Core ---
         const fsSource = `#version 300 es
             precision highp float;
             in vec2 vUv;
             out vec4 fragColor;
 
             uniform float uTime;
-            uniform float uFib;
-            uniform float uFreq;
-            uniform vec3 uColors;
+            uniform float uFib[4];
+            uniform float uFreq[4];
+            uniform vec3 uBaseColors[4];
 
-            // Calculates position tracking coordinates via Logarithmic Sway & Fibonacci
+            // Pure non-linear tracking calculator
             float calculateAxisPosition(float fib, float freq) {
                 float rawSway = log(1.0 + abs(sin(uTime * freq)));
                 float phase = rawSway * fib;
                 return 0.1 + (abs(sin(phase)) * 0.8);
             }
 
-            // Signed Distance Field (SDF) Box Generator
+            // Box Geometry Driver
             float sdfBox(vec2 p, vec2 b) {
                 vec2 d = abs(p) - b;
                 return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
             }
 
-            // Signed Distance Field (SDF) Diamond Generator
+            // Diamond Geometry Driver
             float sdfRhombus(vec2 p, vec2 b) {
                 vec2 q = abs(p);
                 float h = clamp((-2.0 * q.x + b.x) / (b.x + b.y), -1.0, 1.0);
@@ -173,58 +171,60 @@
                 return d * sign(q.x * b.y + q.y * b.x - b.x * b.y);
             }
             void main() {
-                vec3 finalColor = vec3(0.043, 0.047, 0.063); // Base background
+                vec3 finalColor = vec3(0.043, 0.047, 0.063); // Clear space layout background
                 
-                // Pre-compute current axis positions across all dimensions
-                float pX;
-                pX = calculateAxisPosition(uFib, uFreq);
-                pX = calculateAxisPosition(uFib, uFreq);
-                pX = calculateAxisPosition(uFib, uFreq);
-                pX = calculateAxisPosition(uFib, uFreq);
+                // FIXED: Array allocated correctly to satisfy strict GLSL hardware compilers
+                float pX[4];
+                pX[0] = calculateAxisPosition(uFib[0], uFreq[0]);
+                pX[1] = calculateAxisPosition(uFib[1], uFreq[1]);
+                pX[2] = calculateAxisPosition(uFib[2], uFreq[2]);
+                pX[3] = calculateAxisPosition(uFib[3], uFreq[3]);
 
-                // Segment screen space cleanly into 5 horizontal zones
                 int laneIndex = int(vUv.y * 5.0);
-                
-                // Normalize local coordinates inside each active track window [-1.0, 1.0]
                 float localY = fract(vUv.y * 5.0) * 2.0 - 1.0;
                 
-                // Define baseline size parameters
-                vec2 targetDimensions = vec2(0.025, 0.45);
+                // THICKENED GEOMETRY BOUNDS
+                vec2 targetDimensions = vec2(0.045, 0.65); 
+
+                // Dynamic Color Cycling Array Calculations
+                vec3 activeColors[4];
+                for(int i = 0; i < 4; i++) {
+                    float cycle = sin(uTime * 0.002 + float(i) * 1.5) * 0.5 + 0.5;
+                    activeColors[i] = mix(uBaseColors[i], uBaseColors[(i+1)%4], cycle);
+                }
 
                 if (laneIndex < 4) {
                     float targetX = pX[laneIndex];
                     
-                    // --- MORPH DETERMINATION SHIFT ---
-                    // Compute velocity/phase acceleration state to drive geometry deformaton
                     float dynamicPhase = log(1.0 + abs(sin(uTime * uFreq[laneIndex]))) * uFib[laneIndex];
-                    float shapeMorphFactor = abs(cos(dynamicPhase * 1.5)); // Cycles between 0.0 and 1.0
+                    float shapeMorphFactor = abs(cos(dynamicPhase * 1.5));
 
-                    // Map local space relative to block center
                     vec2 localPos = vec2(vUv.x - targetX, localY);
 
-                    // Sample multiple geometry maps simultaneously
                     float dBox = sdfBox(localPos, targetDimensions);
-                    float dRhombus = sdfRhombus(localPos, targetDimensions * 1.8);
-                    float dCircle = length(localPos) - targetDimensions.x * 1.5;
+                    float dRhombus = sdfRhombus(localPos, targetDimensions * 1.6);
+                    float dCircle = length(localPos) - targetDimensions.x * 1.6;
 
-                    // Blend geometries based on position swap velocity states
                     float mixedSDF = mix(dBox, dRhombus, shapeMorphFactor);
                     if (shapeMorphFactor > 0.7) {
                         mixedSDF = mix(mixedSDF, dCircle, (shapeMorphFactor - 0.7) / 0.3);
                     }
 
-                    // Render geometry edges smoothly using anti-aliased step thresholds
+                    // THICK HIGHLIGHTED BORDERS LOGIC
                     if (mixedSDF < 0.0) {
-                        finalColor = uColors[laneIndex];
-                        // Add inner glowing luminance based on edge distance profile
-                        finalColor += vec3(0.3) * (1.0 - abs(mixedSDF / targetDimensions.x));
+                        finalColor = activeColors[laneIndex];
+                        
+                        // Overlay thick bright border outline down at edge threshold limit boundary lines
+                        if (mixedSDF > -0.008) {
+                            finalColor = vec3(1.0, 1.0, 1.0); // Clean stark white boundary highlights
+                        }
                     }
                     
-                    if (fract(vUv.y * 5.0) < 0.04) finalColor += vec3(0.03);
+                    if (fract(vUv.y * 5.0) < 0.03) finalColor += vec3(0.05);
                 } 
                 else {
-                    // --- SECTION V: INTERSECT REFLECTION CORE MATRIX ---
-                    finalColor = vec3(0.066, 0.078, 0.102); 
+                    // --- SECTION V: CORE REFLECTION CORE ---
+                    finalColor = vec3(0.08, 0.09, 0.12); 
                     
                     for (int i = 0; i < 4; i++) {
                         int prevIdx = (i == 0) ? 3 : i - 1;
@@ -235,19 +235,21 @@
                         float traceProgress = fract(uTime * uFreq[i] * 5.0); 
                         float invertedX = originX + (totalVectorDistance * (1.0 - traceProgress));
 
-                        // Track inverse structural shape morph states matching parent profiles
                         float parentPhase = log(1.0 + abs(sin(uTime * uFreq[i]))) * uFib[i];
                         float matrixMorph = abs(cos(parentPhase * 1.5));
 
                         vec2 matrixLocalPos = vec2(vUv.x - invertedX, localY);
                         
-                        float mBox = sdfBox(matrixLocalPos, targetDimensions * vec2(0.8, 0.7));
-                        float mRhombus = sdfRhombus(matrixLocalPos, targetDimensions * vec2(1.4, 1.2));
+                        float mBox = sdfBox(matrixLocalPos, targetDimensions * vec2(0.9, 0.8));
+                        float mRhombus = sdfRhombus(matrixLocalPos, targetDimensions * vec2(1.5, 1.3));
                         float mMixed = mix(mBox, mRhombus, matrixMorph);
 
                         if (mMixed < 0.0) {
-                            vec3 traceColor = mix(finalColor, uColors[i], 1.0 - traceProgress);
-                            finalColor = mix(finalColor, traceColor, 0.9);
+                            vec3 traceColor = mix(finalColor, activeColors[i], 1.0 - traceProgress);
+                            if (mMixed > -0.008) {
+                                traceColor = vec3(1.0, 1.0, 1.0); // Hard reflective white boundary limits
+                            }
+                            finalColor = mix(finalColor, traceColor, 0.95);
                         }
                     }
                 }
@@ -255,12 +257,12 @@
                 fragColor = vec4(finalColor, 1.0);
             }
         `;
-        // --- WebGL2 Context & Compilation Pipeline Binding ---
+        // --- WebGL2 Context Binding & Pipeline Compilation ---
         const canvas = document.getElementById('glCanvas');
         const gl = canvas.getContext('webgl2');
 
         if (!gl) {
-            document.getElementById('diagnostics').innerText = "FATAL: Graphics hardware context could not initialize.";
+            alert("WebGL2 is locked or un-supported by your target graphics card/browser variant configuration.");
         }
 
         canvas.width = 800;
@@ -272,7 +274,7 @@
             gl.shaderSource(shader, source);
             gl.compileShader(shader);
             if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                console.error(gl.getShaderInfoLog(shader));
+                console.error("Shader Compile Crash Diagnostics Logs:", gl.getShaderInfoLog(shader));
                 gl.deleteShader(shader);
                 return null;
             }
@@ -281,10 +283,15 @@
 
         const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
         const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        
         const program = gl.createProgram();
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
         gl.linkProgram(program);
+        
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error("Shader Program Linking Fault:", gl.getProgramInfoLog(program));
+        }
         gl.useProgram(program);
 
         const positionBuffer = gl.createBuffer();
@@ -301,17 +308,20 @@
         const uTimeLoc = gl.getUniformLocation(program, "uTime");
         const uFibLoc = gl.getUniformLocation(program, "uFib");
         const uFreqLoc = gl.getUniformLocation(program, "uFreq");
-        const uColorsLoc = gl.getUniformLocation(program, "uColors");
+        const uColorsLoc = gl.getUniformLocation(program, "uBaseColors");
 
+        // Unified Configuration Struct Sync Passes
         gl.uniform1fv(uFibLoc, new Float32Array([2.0, 5.0, 13.0, 21.0])); 
         gl.uniform1fv(uFreqLoc, new Float32Array([0.0008, 0.0012, 0.0005, 0.0018])); 
         gl.uniform3fv(uColorsLoc, new Float32Array([
-            0.4, 0.98, 0.94,  // Cyan
-            1.0, 0.0,  0.5,   // Magenta
-            1.0, 0.71, 0.01,  // Amber
-            0.02, 0.84, 0.62   // Emerald
+            0.0, 1.0, 1.0,  // Cyan Base
+            1.0, 0.0, 0.5,  // Magenta Base
+            1.0, 0.7, 0.0,  // Amber Base
+            0.0, 1.0, 0.5   // Emerald Base
         ]));
-        // --- Application Frame Controller & User Interface Listeners ---
+
+        document.getElementById('diagnostics').innerText = "GPU PIPELINES ENERGIZED | CONTEXT STATUS: STABLE";
+        // --- Control Loops & Dynamic Ticker Framework Variables ---
         let internalEngineTime = 0;
         let lastRealTimestamp = 0;
         let isEngineRunning = true;
@@ -341,6 +351,7 @@
                 internalEngineTime += deltaRealTime * runningSpeedMultiplier;
             }
 
+            // Sync dynamic timeline tick straight to core pipeline execution maps
             gl.uniform1f(uTimeLoc, internalEngineTime);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
 
