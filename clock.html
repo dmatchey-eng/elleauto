@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Four-Part Fibonacci Sway Engine</title>
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #c5a059;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            color: #66fcf1;
+            font-size: 0.8rem;
+            margin-bottom: 30px;
+        }
+
+        .clock-container {
+            width: 90vw;
+            max-width: 800px;
+            background: #1f2833;
+            border: 1px solid #c5a059;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(197, 160, 89, 0.1);
+        }
+
+        .track {
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .track-label {
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        canvas {
+            width: 100%;
+            height: 60px;
+            background: #0b0c10;
+            border-left: 2px solid #c5a059;
+            border-right: 2px solid #c5a059;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Single-Axis Four-Part Clock</h1>
+    <div class="subtitle">Truncated Fibonacci Progression & Logarithmic Sway Engine</div>
+
+    <div class="clock-container">
+        <!-- Part 1: Cyan -->
+        <div class="track">
+            <div class="track-label"><span id="lbl-0">PART I: INITIALIZING...</span><span style="color: #66fcf1;">Fib: 2</span></div>
+            <canvas id="canvas-0"></canvas>
+        </div>
+        <!-- Part 2: Magenta -->
+        <div class="track">
+            <div class="track-label"><span id="lbl-1">PART II: INITIALIZING...</span><span style="color: #ff007f;">Fib: 5</span></div>
+            <canvas id="canvas-1"></canvas>
+        </div>
+        <!-- Part 3: Amber -->
+        <div class="track">
+            <div class="track-label"><span id="lbl-2">PART III: INITIALIZING...</span><span style="color: #ffb703;">Fib: 13</span></div>
+            <canvas id="canvas-2"></canvas>
+        </div>
+        <!-- Part 4: Emerald -->
+        <div class="track">
+            <div class="track-label"><span id="lbl-3">PART IV: INITIALIZING...</span><span style="color: #06d6a0;">Fib: 21</span></div>
+            <canvas id="canvas-3"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // 1. Configure Hardware-Like State Structures
+        const TRUNCATED_FIB =; // Explicit spaced progression nodes
+        
+        const clockParts = [
+            {
+                color: '#66fcf1',       // Cyan
+                baseFrequency: 0.0008,
+                spawnRate: 0.02,        // High generation chance
+                decayRate: 0.015,       // Slow fading trace
+                fibModifier: TRUNCATED_FIB[0],
+                blocks: []
+            },
+            {
+                color: '#ff007f',       // Magenta
+                baseFrequency: 0.0012,
+                spawnRate: 0.04,        // Rapid generation
+                decayRate: 0.035,       // Fast vanishing trace
+                fibModifier: TRUNCATED_FIB[1],
+                blocks: []
+            },
+            {
+                color: '#ffb703',       // Amber
+                baseFrequency: 0.0005,
+                spawnRate: 0.015,       // Sparse structural blocks
+                decayRate: 0.010,       // Highly persistent
+                fibModifier: TRUNCATED_FIB[2],
+                blocks: []
+            },
+            {
+                color: '#06d6a0',       // Emerald
+                baseFrequency: 0.0018,
+                spawnRate: 0.05,        // Maximum saturation bursting
+                decayRate: 0.050,       // Volatile, instant decay
+                fibModifier: TRUNCATED_FIB[3],
+                blocks: []
+            }
+        ];
+
+        // 2. Initialize Canvas Systems
+        const canvases = [];
+        const ctxs = [];
+        
+        clockParts.forEach((part, i) => {
+            const canvas = document.getElementById(`canvas-${i}`);
+            canvases.push(canvas);
+            ctxs.push(canvas.getContext('2d'));
+            
+            // Set internal resolution matching CSS scaling bounds
+            canvas.width = 800;
+            canvas.height = 600;
+        });
+
+        // 3. The Core Processing & Render Engine Loop
+        function runningEngineLoop(timestamp) {
+            
+            clockParts.forEach((part, i) => {
+                const ctx = ctxs[i];
+                const canvas = canvases[i];
+                
+                // Clear and establish background state
+                ctx.fillStyle = '#0b0c10';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // --- THE MATHEMATICAL SYSTEM FUNCTION ---
+                // Calculate position multiplier via Logarithmic Sway modulated by Fibonacci scale values
+                const rawSway = Math.log1p(Math.abs(Math.sin(timestamp * part.baseFrequency)));
+                const operationalPhase = rawSway * part.fibModifier;
+                
+                // Keep the target rendering limits smoothly inside the screen boundary limits [0.1, 0.9]
+                const mappedX = canvas.width * (0.1 + (Math.abs(Math.sin(operationalPhase)) * 0.8));
+
+                // --- SPAWN MECHANICS ENGINE ---
+                // Conditionally allocate new block fragments into the timeline array matrix
+                if (Math.random() < part.spawnRate) {
+                    part.blocks.push({
+                        x: mappedX,
+                        width: 30 + (part.fibModifier * 2), // Size varies based on Fibonacci node assignment
+                        alpha: 1.0                          // Full structural opacity at birth
+                    });
+                }
+
+                // --- RENDERING & DECAY EXTRACTION PIPELINE ---
+                for (let b = part.blocks.length - 1; b >= 0; b--) {
+                    const block = part.blocks[b];
+                    
+                    // Render current block fragment position
+                    ctx.save();
+                    ctx.globalAlpha = block.alpha;
+                    ctx.fillStyle = part.color;
+                    
+                    // Center the block on the tracking coordinate axis
+                    ctx.fillRect(block.x - (block.width / 2), 0, block.width, canvas.height);
+                    ctx.restore();
+
+                    // Process structural decay
+                    block.alpha -= part.decayRate;
+
+                    // Garbage Collection: Extract dead nodes instantly from register arrays
+                    if (block.alpha <= 0) {
+                        part.blocks.splice(b, 1);
+                    }
+                }
+
+                // Update system label values in real-time
+                document.getElementById(`lbl-${i}`).innerText = 
+                    `PART ${['I', 'II', 'III', 'IV'][i]} -> AXIS POS: ${Math.floor(mappedX)}px | UNITS: ${part.blocks.length}`;
+            });
+
+            // Loop infinitely via standard system refresh frames
+            requestAnimationFrame(runningEngineLoop);
+        }
+
+        // Energize the system clock
+        requestAnimationFrame(runningEngineLoop);
+    </script>
+</body>
+</html>
