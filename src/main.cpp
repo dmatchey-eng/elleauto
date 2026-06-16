@@ -8,9 +8,17 @@
 #include <iomanip>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <fstream> // Added for local text file debug log tracking
+#include <fstream> 
 
 #pragma comment(lib, "Ws2_32.lib")
+
+// 🚀 STRUCTURAL FIX: 32-Byte Memory Aligned Architecture for 256-bit OpenCL Data
+struct alignas(32) HostUlong4 {
+    unsigned long long s0 = 0;
+    unsigned long long s1 = 0;
+    unsigned long long s2 = 0;
+    unsigned long long s3 = 0;
+};
 
 struct PoolOption {
     std::string name;
@@ -26,37 +34,34 @@ struct MinerConfig {
 
 struct StratumJob {
     std::string job_id = "";
-    std::string seed_hash = "";  
-    std::string difficulty = ""; 
+    std::string block_height_hex = "";  
+    std::string header_hash_hex = ""; 
     bool is_new_job = false;
 };
 
+// 🚀 STRUCTURAL FIX: Upgraded from primitive integer storage to 256-bit Vector Tracking Structures
 struct ActiveMiningJob {
-    unsigned long long difficulty = 0;
-    unsigned long long header_hash = 0;
+    HostUlong4 difficulty;
+    HostUlong4 header_hash;
     unsigned long long nonce_start = 1000000000ULL;
 };
-// 🚀 FIX: Overwrite the list at the bottom of Section 1 in src/main.cpp
+
 const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (USA - West)", "us.ergo.herominers.com", "1180"},
-    {"HeroMiners (USA - East)", "us2.ergo.herominers.com", "1180"},
-    {"HeroMiners (Germany / EU)", "de.ergo.herominers.com", "1180"},
-    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"}
+    {"HeroMiners (USA - West)", "://herominers.com", "1180"},
+    {"HeroMiners (USA - East)", "://herominers.com", "1180"},
+    {"HeroMiners (Germany / EU)", "://herominers.com", "1180"},
+    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
 };
 
 // Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
-// 🚀 FIX: This forces the string variable memory signature to remain visible to opencl_manager.cpp
 std::string g_current_job_id = "0"; 
 
 ActiveMiningJob g_next_job;
-// Explicitly initialize the dynamic RPC message counter baseline here
-std::atomic<unsigned int> g_rpc_id_counter(3); 
-
-// Track the persistent dynamic extra_nonce2 locally
+std::atomic<unsigned int> g_rpc_id_counter(100); 
 std::atomic<unsigned long long> g_extra_nonce2_counter(0);
-    MinerConfig config;
+MinerConfig config;
 
 std::atomic<int> g_dag_progress(0);
 std::atomic<bool> g_is_dag_building(false);
@@ -65,19 +70,47 @@ std::atomic<unsigned int> g_shares_submitted(0);
 std::atomic<unsigned int> g_shares_accepted(0);
 std::atomic<unsigned int> g_shares_rejected(0);
 std::string g_network_status_msg = "Awaiting network jobs...";
+std::string g_active_pool_diff = "1";
+std::string g_pool_extra_nonce1 = "0000"; 
+SOCKET g_poolSocketGlobal = INVALID_SOCKET;
+// 🚀 HEX PARSER HELPERS
+unsigned long long parseHexSlice64(const std::string& hex_slice) {
+    unsigned long long value = 0;
+    std::stringstream ss;
+    ss << std::hex << hex_slice;
+    ss >> value;
+    return value;
+}
 
-// Forward Declarations of Subsystems
-StratumJob parseStratumLine(const std::string& line);
-bool initOpenCL();
-bool allocateAndBuildVectorDag(size_t total_elements_count);
-void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input);
-void shutdownOpenCL();
-void initWinsock() {
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "[ERROR] Winsock initialization failed.\n";
-        exit(1);
-    }
+HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex) {
+    HostUlong4 out_vector;
+    std::string clean_hex = raw_hex;
+    if (clean_hex.rfind("0x", 0) == 0) clean_hex = clean_hex.substr(2);
+    if (clean_hex.length() != 64) return out_vector; 
+
+    out_vector.s0 = parseHexSlice64(clean_hex.substr(0, 16));
+    out_vector.s1 = parseHexSlice64(clean_hex.substr(16, 16));
+    out_vector.s2 = parseHexSlice64(clean_hex.substr(32, 16));
+    out_vector.s3 = parseHexSlice64(clean_hex.substr(48, 16));
+    return out_vector;
+}
+
+// 🚀 Target Calculation Helper (Approximating BigInt 2^256 / Diff bounds into four 64-bit lanes)
+HostUlong4 compute256BitTarget(const std::string& diff_str) {
+    HostUlong4 target;
+    double diff = std::stod(diff_str);
+    if (diff <= 0.0) diff = 1.0;
+
+    // Maximum 256-bit ceiling boundary approximation
+    double target_val = 1.157920892373162e+77 / diff; 
+
+    // Spread target approximations downward through layout storage lanes
+    target.s3 = (unsigned long long)(target_val / 18446744073709551616.0 / 18446744073709551616.0 / 18446744073709551616.0);
+    target.s2 = (unsigned long long)(target_val / 18446744073709551616.0 / 18446744073709551616.0);
+    target.s1 = (unsigned long long)(target_val / 18446744073709551616.0);
+    target.s0 = (unsigned long long)(target_val);
+    
+    return target;
 }
 
 unsigned long long convertHexToUlong(const std::string& hexStr) {
@@ -91,25 +124,32 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
     ss >> result;
     return result;
 }
+// Forward Declarations of Subsystems
+StratumJob parseStratumLine(const std::string& line);
+bool initOpenCL();
+bool allocateAndBuildVectorDag(size_t total_elements_count);
+void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficulty, HostUlong4 header_hash_input);
+void shutdownOpenCL();
 
-SOCKET g_poolSocketGlobal = INVALID_SOCKET;
-// 🚀 FIX: Start the dynamic message counter at 100 to clear the pool's low-ID reservation block
+void initWinsock() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "[ERROR] Winsock initialization failed.\n";
+        exit(1);
+    }
+}
 
-void submitShare(const std::string& job_id, unsigned long long found_nonce, unsigned long long found_solution) {
+// 🚀 STRUCTURAL FIX: submitShare Upgraded to serialized full 256-bit solution strings
+void submitShare(const std::string& job_id, unsigned long long found_nonce, HostUlong4 found_solution) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
     g_shares_submitted++;
     g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
 
     std::string clean_job_id = job_id;
-    while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) {
-        clean_job_id.erase(0, 1);
-    }
-    while (!clean_job_id.empty() && (clean_job_id.back() == '"' || clean_job_id.back() == ' ')) {
-        clean_job_id.pop_back();
-    }
+    while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) clean_job_id.erase(0, 1);
+    while (!clean_job_id.empty() && (clean_job_id.back() == '"' || clean_job_id.back() == ' ')) clean_job_id.pop_back();
 
-    // Dynamic extra_nonce2 formatting tracking block
     unsigned long long active_ext_nonce2 = g_extra_nonce2_counter.fetch_add(1);
     std::stringstream ext2_stream;
     ext2_stream << std::setw(8) << std::setfill('0') << std::hex << active_ext_nonce2;
@@ -119,24 +159,22 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce, unsi
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
+    // 💥 FIX: Serialize all four 64-bit solution hash registers to form an exact 64-character payload string
     std::stringstream sol_stream;
-    sol_stream << std::setw(64) << std::setfill('0') << std::hex << found_solution;
+    sol_stream << std::setw(16) << std::setfill('0') << std::hex << found_solution.s0
+               << std::setw(16) << std::setfill('0') << std::hex << found_solution.s1
+               << std::setw(16) << std::setfill('0') << std::hex << found_solution.s2
+               << std::setw(16) << std::setfill('0') << std::hex << found_solution.s3;
     std::string solution_hex = sol_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
-    
-    extern std::string g_pool_extra_nonce1; // Query the actual token captured by the parser
-    extern MinerConfig config;
 
-    // 🚀 FIX 3: Construct perfectly balanced parameter payloads using your true ExtraNonce1 string
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
                                 ", \"method\": \"mining.submit\", \"params\": [\"" + config.wallet + "\", \"" + 
                                 clean_job_id + "\", \"" + extra_nonce2_hex + "\", \"" + nonce_hex + "\", \"" + solution_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
-
-
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
     if (!initOpenCL()) {
@@ -167,11 +205,7 @@ void listenToPool(SOCKET poolSocket) {
     char recv_buffer[4096]; 
     std::string stream_accumulator = "";
 
-    // 🚀 FIX 1: Truncate (wipe) the file on launch by omitting std::ios::app
-    // This ensures old data from previous runs is deleted instantly.
     std::ofstream debug_log("network_log.txt");
-    
-    // 🚀 FIX 2: Counter to automatically cap the log size
     int log_counter = 0; 
 
     if (debug_log.is_open()) {
@@ -190,7 +224,6 @@ void listenToPool(SOCKET poolSocket) {
         recv_buffer[bytesReceived] = '\0'; 
         std::string dynamic_packet_chunk(recv_buffer, bytesReceived);
         
-        // 🚀 FIX 3: Auto-cap logging after 150 incoming network packets
         if (debug_log.is_open() && log_counter < 150) {
             debug_log << "[RAW RECEIVED]: " << dynamic_packet_chunk << "\n";
             debug_log.flush(); 
@@ -198,7 +231,7 @@ void listenToPool(SOCKET poolSocket) {
             
             if (log_counter == 150) {
                 debug_log << "\n=== LOG AUTO-CAPPED: Stopping file writes to prevent storage bloat. ===\n";
-                debug_log.close(); // Safely disconnect file handle early
+                debug_log.close(); 
             }
         }
 
@@ -216,9 +249,13 @@ void listenToPool(SOCKET poolSocket) {
                     is_current_job_valid = false; 
                     g_current_job_id = current_job.job_id;
 
-                    g_next_job.header_hash = convertHexToUlong(current_job.seed_hash);
-                    g_next_job.difficulty  = convertHexToUlong(current_job.difficulty);
-                    g_next_job.nonce_start = 1000000000ULL; 
+                    // 💥 FIX: Correctly map raw hex string components to 256-bit layout vectors
+                    g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
+                    g_next_job.difficulty  = compute256BitTarget(g_active_pool_diff);
+                    
+                    // Derive worker search offsets safely using pool extra_nonce1
+                    unsigned long long ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
+                    g_next_job.nonce_start = ext_nonce_val << 32; 
 
                     is_current_job_valid = true; 
                 }
@@ -227,8 +264,6 @@ void listenToPool(SOCKET poolSocket) {
     }
     if (debug_log.is_open()) debug_log.close();
 }
-
-
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
     std::cout << "  SELECT ERGO MINING POOL\n";
@@ -291,10 +326,16 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
     freeaddrinfo(result);
     std::cout << "[NET] Connected successfully! Sending Stratum handshake...\n";
 
+    // 💥 HERO-MINERS WALLET PARSING REQUIREMENT: Prefix address string with 'solo:' to execute solo pool jobs properly
+    std::string processed_wallet = config.wallet;
+    if (config.pool_host.find("herominers") != std::string::npos && processed_wallet.rfind("solo:", 0) != 0) {
+        processed_wallet = "solo:" + processed_wallet;
+    }
+
     std::string subscribePayload = "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": [\"elleauto-v1.0\", \"Autolykosv2\"]}\n";
     send(connectSocket, subscribePayload.c_str(), (int)subscribePayload.length(), 0);
 
-    std::string authPayload = "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"" + config.wallet + "\", \"x\"]}\n";
+    std::string authPayload = "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"" + processed_wallet + "\", \"x\"]}\n";
     send(connectSocket, authPayload.c_str(), (int)authPayload.length(), 0);
 
     return true;
@@ -305,8 +346,6 @@ int main() {
     if (hOut != INVALID_HANDLE_VALUE) {
         DWORD dwMode = 0;
         if (GetConsoleMode(hOut, &dwMode)) {
-            // Hexadecimal code for ENABLE_VIRTUAL_TERMINAL_PROCESSING (0x0004)
-            // Using the raw number ensures it compiles perfectly on any environment
             dwMode |= 0x0004; 
             SetConsoleMode(hOut, dwMode);
         }
