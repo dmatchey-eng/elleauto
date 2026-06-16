@@ -8,6 +8,12 @@
 #include <thread>
 #include <chrono>
 
+struct alignas(32) HostUlong4 {
+    unsigned long long s0;
+    unsigned long long s1;
+    unsigned long long s2;
+    unsigned long long s3;
+};
 // Shared atomic variables for UI synchronization
 extern std::atomic<int> g_dag_progress;
 extern std::atomic<bool> g_is_dag_building;
@@ -161,34 +167,39 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     g_is_dag_building = true;
     cl_int err1, err2;
 
+    // 💥 FIX 2: Ensure total_elements_count represents the number of true 32-byte segments
     size_t half_elements = total_elements_count / 2;
-    size_t half_bytes_size = half_elements * sizeof(unsigned long long);
+    size_t half_bytes_size = half_elements * sizeof(HostUlong4); // Exactly 32 bytes per element
 
-    std::cout << "[GPU] Forcing VRAM buffer creation allocation blocks...\n";
+    std::cout << "[GPU] Forcing VRAM buffer creation allocation blocks (" 
+              << (half_bytes_size * 2) / (1024 * 1024) << " MB total)...\n";
 
     g_dagBufferPart1 = clCreateBuffer(g_clContext, CL_MEM_READ_ONLY, half_bytes_size, nullptr, &err1);
     g_dagBufferPart2 = clCreateBuffer(g_clContext, CL_MEM_READ_ONLY, half_bytes_size, nullptr, &err2);
 
     if (err1 != CL_SUCCESS || err2 != CL_SUCCESS) {
         std::cerr << "\n[GPU ERROR] DAG VRAM Allocation failed. Part1: " << err1 << " Part2: " << err2 << "\n";
-        system("pause");
         g_is_dag_building = false;
         return false;
     }
 
-    std::vector<unsigned long long> host_chunk(half_elements);
+    // 💥 FIX 3: Initialize the host generation memory using your new 32-byte layout chunks
+    std::vector<HostUlong4> host_chunk(half_elements);
     for(size_t i = 0; i < half_elements; ++i) {
-        host_chunk[i] = (i * 0xFFFFFFFFFFFFFFFFULL) ^ (half_elements + i);
+        unsigned long long dummy_val = (i * 0xFFFFFFFFFFFFFFFFULL) ^ (half_elements + i);
+        // Fill out all four 64-bit lanes of the ulong4 vector
+        host_chunk[i].s0 = dummy_val;
+        host_chunk[i].s1 = dummy_val ^ 0x123456789ABCDEF0ULL; 
+        host_chunk[i].s2 = dummy_val + i;
+        host_chunk[i].s3 = dummy_val | 0x0F0F0F0F0F0F0F0FULL;
     }
     
-    // 🚀 FIX 1: Enforce CL_TRUE to block the CPU thread until data physically transfers
     g_dag_progress = 25;
     clEnqueueWriteBuffer(g_clQueue, g_dagBufferPart1, CL_TRUE, 0, half_bytes_size, host_chunk.data(), 0, nullptr, nullptr);
     
     g_dag_progress = 75;
     clEnqueueWriteBuffer(g_clQueue, g_dagBufferPart2, CL_TRUE, 0, half_bytes_size, host_chunk.data(), 0, nullptr, nullptr);
     
-    // 🚀 FIX 2: Force the AMD driver to flush every deferred command instantly to the hardware
     std::cout << "[GPU] Flashing queues. Forcing hardware allocation sweep across memory lines...\n";
     clFinish(g_clQueue); 
     
