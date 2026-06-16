@@ -16,6 +16,17 @@ jobs:
     - name: Checkout Repository Files
       uses: actions/checkout@v4
 
+    - name: Download Khronos OpenCL Headers
+      shell: powershell
+      run: |
+        mkdir include/CL
+        Invoke-WebRequest -Uri "https://githubusercontent.com" -OutFile "include/CL/cl.h"
+        Invoke-WebRequest -Uri "https://githubusercontent.com" -OutFile "include/CL/cl_platform.h"
+        Invoke-WebRequest -Uri "https://githubusercontent.com" -OutFile "include/CL/opencl.hpp"
+        
+        # Backward compatibility tracking fallback for older source wrappers
+        Copy-Item "include/CL/opencl.hpp" -Destination "include/CL/cl2.hpp"
+
     - name: Set up MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
 
