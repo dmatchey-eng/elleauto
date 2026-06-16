@@ -33,8 +33,8 @@ struct ActiveMiningJob {
 };
 
 const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (USA - West)", "us.ergo.herominers.com", "1180"},
-    {"HeroMiners (USA - East)", "us2.ergo.herominers.com", "1180"},
+    {"HeroMiners (USA - Solo)", "us.ergo.herominers.com", "1181"},
+    {"HeroMiners (USA - Pool)", "us.ergo.herominers.com", "1180"},
     {"HeroMiners (Germany / EU)", "de.ergo.herominers.com", "1180"},
     {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"}
 };
@@ -317,41 +317,60 @@ void selectPool(MinerConfig& config) {
 }
 
 bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
+    std::cout << "[NET] Resolving host pool domain: " << config.pool_host 
+              << " on port: " << config.pool_port << "...\n";
+
     struct addrinfo hints {}, *result = nullptr;
-    hints.ai_family = AF_UNSPEC;     
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_UNSPEC;     // Support both IPv4 and IPv6 transparently
+    hints.ai_socktype = SOCK_STREAM; // TCP Streaming standard
     hints.ai_protocol = IPPROTO_TCP;
 
     int dns_status = getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result);
-    if (dns_status != 0) return false;
+    if (dns_status != 0) {
+        std::cerr << "[NET ERROR] DNS Resolution failed. Error: " << dns_status << "\n";
+        return false;
+    }
 
     connectSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     if (connectSocket == INVALID_SOCKET) {
+        std::cerr << "[NET ERROR] Socket creation failed. Error: " << WSAGetLastError() << "\n";
         freeaddrinfo(result);
         return false;
     }
 
+    // Attempt to open the TCP network pipe line connection
     if (connect(connectSocket, result->ai_addr, (int)result->ai_addrlen) == SOCKET_ERROR) {
+        std::cerr << "[NET ERROR] Connection refused by pool endpoint. Error: " << WSAGetLastError() << "\n";
         closesocket(connectSocket);
         freeaddrinfo(result);
         return false;
     }
     
     freeaddrinfo(result);
+    std::cout << "[NET] TCP pipe established safely. Sending Stratum handshake payload...\n";
 
-    std::string processed_wallet = config.wallet;
-    if (config.pool_host.find("herominers") != std::string::npos && processed_wallet.rfind("solo:", 0) != 0) {
-        processed_wallet = "solo:" + processed_wallet;
+    // 🚀 FIXED STEP 1: Construct an explicit subscribe payload with a clear trailing newline
+    std::string subscribePayload = "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": [\"elleauto-v1.0\", \"Autolykosv2\"]}\n";
+    int bytesSent = send(connectSocket, subscribePayload.c_str(), (int)subscribePayload.length(), 0);
+    if (bytesSent == SOCKET_ERROR) {
+        std::cerr << "[NET ERROR] Failed to transmit subscribe payload package block.\n";
+        closesocket(connectSocket);
+        return false;
     }
 
-    std::string subscribePayload = "{\"id\": 1, \"method\": \"mining.subscribe\", \"params\": [\"elleauto-v1.0\", \"Autolykosv2\"]}\n";
-    send(connectSocket, subscribePayload.c_str(), (int)subscribePayload.length(), 0);
+    // 🚀 FIXED STEP 2: Transmit a clean authorize payload using ID 2 and raw wallet tracking strings
+    std::string authPayload = "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"" + config.wallet + "\", \"x\"]}\n";
+    bytesSent = send(connectSocket, authPayload.c_str(), (int)authPayload.length(), 0);
+    if (bytesSent == SOCKET_ERROR) {
+        std::cerr << "[NET ERROR] Failed to transmit authorization credentials package block.\n";
+        closesocket(connectSocket);
+        return false;
+    }
 
-    std::string authPayload = "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"" + processed_wallet + "\", \"x\"]}\n";
-    send(connectSocket, authPayload.c_str(), (int)authPayload.length(), 0);
-
+    std::cout << "[NET SUCCESS] Handshake packets pushed to server. Handing off to network thread loop...\n";
     return true;
 }
+
 
 void keyboardInputMonitor() {
     while (is_mining_running) {
