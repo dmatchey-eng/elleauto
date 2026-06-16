@@ -57,13 +57,22 @@ StratumJob parseStratumLine(const std::string& line) {
             }
 
             if (tokens.size() >= 3) {
-                job.is_new_job = true;
-                job.job_id = cleanToken(tokens[0]);
-                job.block_height_hex = cleanToken(tokens[1]);
-                job.header_hash_hex = cleanToken(tokens[2]); 
+                job.job_id = tokens[0];
+                job.block_height_hex = tokens[1];
                 
-                extern std::string g_network_status_msg;
-                g_network_status_msg = "[OK] Mining Active | Processing Ergo Block Height Hex: " + job.block_height_hex;
+                // Fallback scan loop if empty quote padding shifts array slots
+                for (const auto& t : tokens) {
+                    if (t.length() == 64) {
+                        job.header_hash_hex = t;
+                        job.is_new_job = true;
+                        break;
+                    }
+                }
+
+                if (job.is_new_job) {
+                    extern std::string g_network_status_msg;
+                    g_network_status_msg = "[OK] Mining Active | Processing Ergo Height: " + job.block_height_hex;
+                }
             }
         }
     }
