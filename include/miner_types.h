@@ -18,4 +18,12 @@ struct StratumJob {
     bool is_new_job = false;
 };
 
+// 🚀 UNIVERSAL CROSS-LINK TRACKING REFERENCES
+extern std::atomic<bool> is_mining_running;
+extern std::atomic<bool> is_current_job_valid;
+extern std::string g_current_job_id;
+extern std::string g_network_status_msg;
+extern std::string g_active_pool_diff;
+extern std::string g_pool_extra_nonce1;
+
 #endif // MINER_TYPES_H
