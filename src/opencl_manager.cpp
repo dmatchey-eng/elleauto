@@ -1,4 +1,5 @@
 #include <CL/cl.h>
+#include <miner_types.h>
 #include <iostream>
 #include <vector>
 #include <string>
