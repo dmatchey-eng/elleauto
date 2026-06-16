@@ -69,13 +69,30 @@ unsigned long long parseHexSlice64(const std::string& hex_slice) {
 HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex) {
     HostUlong4 out_vector;
     std::string clean_hex = raw_hex;
-    if (clean_hex.rfind("0x", 0) == 0) clean_hex = clean_hex.substr(2);
-    if (clean_hex.length() != 64) return out_vector; 
+    
+    // 1. Strip away any common web prefixes or escape formatting characters
+    if (clean_hex.rfind("0x", 0) == 0 || clean_hex.rfind("0X", 0) == 0) {
+        clean_hex = clean_hex.substr(2);
+    }
+    
+    // 🚀 ROBUST PARSER FIX: If extra quotes or array tokens are attached, 
+    // extract exactly the LAST 64 characters of the target text string!
+    if (clean_hex.length() > 64) {
+        clean_hex = clean_hex.substr(clean_hex.length() - 64);
+    }
+    
+    // Verify we have enough characters left to build four 16-character blocks
+    if (clean_hex.length() < 64) {
+        // Safe padding initialization boundary recovery 
+        clean_hex = std::string(64 - clean_hex.length(), '0') + clean_hex;
+    }
 
+    // 2. Map the 16-character hex slices straight into your 32-byte host lanes
     out_vector.s0 = parseHexSlice64(clean_hex.substr(0, 16));
     out_vector.s1 = parseHexSlice64(clean_hex.substr(16, 16));
     out_vector.s2 = parseHexSlice64(clean_hex.substr(32, 16));
     out_vector.s3 = parseHexSlice64(clean_hex.substr(48, 16));
+    
     return out_vector;
 }
 
