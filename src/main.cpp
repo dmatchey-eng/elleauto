@@ -1,3 +1,4 @@
+#include "miner_types.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -9,17 +10,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <fstream> 
-#include <miner_types.h>
 
 #pragma comment(lib, "Ws2_32.lib")
-
-// 🚀 STRUCTURAL FIX: 32-Byte Memory Aligned Architecture for 256-bit OpenCL Data
-struct alignas(32) HostUlong4 {
-    unsigned long long s0 = 0;
-    unsigned long long s1 = 0;
-    unsigned long long s2 = 0;
-    unsigned long long s3 = 0;
-};
 
 struct PoolOption {
     std::string name;
@@ -33,14 +25,6 @@ struct MinerConfig {
     std::string pool_port = "";
 };
 
-struct StratumJob {
-    std::string job_id = "";
-    std::string block_height_hex = "";  
-    std::string header_hash_hex = ""; 
-    bool is_new_job = false;
-};
-
-// 🚀 STRUCTURAL FIX: Upgraded from primitive integer storage to 256-bit Vector Tracking Structures
 struct ActiveMiningJob {
     HostUlong4 difficulty;
     HostUlong4 header_hash;
@@ -54,7 +38,6 @@ const std::vector<PoolOption> DEFAULT_POOLS = {
     {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
 };
 
-// Global Thread & State Synced Variables
 std::atomic<bool> is_mining_running(true);
 std::atomic<bool> is_current_job_valid(false);
 std::string g_current_job_id = "0"; 
@@ -74,7 +57,6 @@ std::string g_network_status_msg = "Awaiting network jobs...";
 std::string g_active_pool_diff = "1";
 std::string g_pool_extra_nonce1 = "0000"; 
 SOCKET g_poolSocketGlobal = INVALID_SOCKET;
-// 🚀 HEX PARSER HELPERS
 unsigned long long parseHexSlice64(const std::string& hex_slice) {
     unsigned long long value = 0;
     std::stringstream ss;
@@ -96,16 +78,13 @@ HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex) {
     return out_vector;
 }
 
-// 🚀 Target Calculation Helper (Approximating BigInt 2^256 / Diff bounds into four 64-bit lanes)
 HostUlong4 compute256BitTarget(const std::string& diff_str) {
     HostUlong4 target;
     double diff = std::stod(diff_str);
     if (diff <= 0.0) diff = 1.0;
 
-    // Maximum 256-bit ceiling boundary approximation
     double target_val = 1.157920892373162e+77 / diff; 
 
-    // Spread target approximations downward through layout storage lanes
     target.s3 = (unsigned long long)(target_val / 18446744073709551616.0 / 18446744073709551616.0 / 18446744073709551616.0);
     target.s2 = (unsigned long long)(target_val / 18446744073709551616.0 / 18446744073709551616.0);
     target.s1 = (unsigned long long)(target_val / 18446744073709551616.0);
@@ -125,8 +104,6 @@ unsigned long long convertHexToUlong(const std::string& hexStr) {
     ss >> result;
     return result;
 }
-// Forward Declarations of Subsystems
-StratumJob parseStratumLine(const std::string& line);
 bool initOpenCL();
 bool allocateAndBuildVectorDag(size_t total_elements_count);
 void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficulty, HostUlong4 header_hash_input);
@@ -140,7 +117,6 @@ void initWinsock() {
     }
 }
 
-// 🚀 STRUCTURAL FIX: submitShare Upgraded to serialized full 256-bit solution strings
 void submitShare(const std::string& job_id, unsigned long long found_nonce, HostUlong4 found_solution) {
     if (g_poolSocketGlobal == INVALID_SOCKET) return;
 
@@ -160,7 +136,6 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce, Host
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
-    // 💥 FIX: Serialize all four 64-bit solution hash registers to form an exact 64-character payload string
     std::stringstream sol_stream;
     sol_stream << std::setw(16) << std::setfill('0') << std::hex << found_solution.s0
                << std::setw(16) << std::setfill('0') << std::hex << found_solution.s1
@@ -231,7 +206,7 @@ void listenToPool(SOCKET poolSocket) {
             log_counter++;
             
             if (log_counter == 150) {
-                debug_log << "\n=== LOG AUTO-CAPPED: Stopping file writes to prevent storage bloat. ===\n";
+                debug_log << "\n=== LOG AUTO-CAPPED ===\n";
                 debug_log.close(); 
             }
         }
@@ -250,11 +225,9 @@ void listenToPool(SOCKET poolSocket) {
                     is_current_job_valid = false; 
                     g_current_job_id = current_job.job_id;
 
-                    // 💥 FIX: Correctly map raw hex string components to 256-bit layout vectors
                     g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
                     g_next_job.difficulty  = compute256BitTarget(g_active_pool_diff);
                     
-                    // Derive worker search offsets safely using pool extra_nonce1
                     unsigned long long ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
                     g_next_job.nonce_start = ext_nonce_val << 32; 
 
@@ -294,40 +267,28 @@ void selectPool(MinerConfig& config) {
 }
 
 bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
-    std::cout << "[NET Debug] Attempting DNS resolution for host: " << config.pool_host 
-              << " on port: " << config.pool_port << "\n";
-
     struct addrinfo hints {}, *result = nullptr;
     hints.ai_family = AF_UNSPEC;     
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
     int dns_status = getaddrinfo(config.pool_host.c_str(), config.pool_port.c_str(), &hints, &result);
-    if (dns_status != 0) {
-        std::cerr << "[ERROR] DNS Resolution failed. Windows Error Code: " << WSAGetLastError() 
-                  << " (getaddrinfo code: " << dns_status << ")\n";
-        return false;
-    }
+    if (dns_status != 0) return false;
 
     connectSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
     if (connectSocket == INVALID_SOCKET) {
-        std::cerr << "[ERROR] Socket creation failed. Error: " << WSAGetLastError() << "\n";
         freeaddrinfo(result);
         return false;
     }
 
-    std::cout << "[NET] Connecting to pool socket endpoint...\n";
     if (connect(connectSocket, result->ai_addr, (int)result->ai_addrlen) == SOCKET_ERROR) {
-        std::cerr << "[ERROR] Pool connection refused or timed out. Error: " << WSAGetLastError() << "\n";
         closesocket(connectSocket);
         freeaddrinfo(result);
         return false;
     }
     
     freeaddrinfo(result);
-    std::cout << "[NET] Connected successfully! Sending Stratum handshake...\n";
 
-    // 💥 HERO-MINERS WALLET PARSING REQUIREMENT: Prefix address string with 'solo:' to execute solo pool jobs properly
     std::string processed_wallet = config.wallet;
     if (config.pool_host.find("herominers") != std::string::npos && processed_wallet.rfind("solo:", 0) != 0) {
         processed_wallet = "solo:" + processed_wallet;
@@ -373,7 +334,6 @@ int main() {
 
         while (is_mining_running) {
             std::cout << "\033[2J\033[1;1H"; 
-            
             std::cout << "=========================================================\n";
             std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
             std::cout << "=========================================================\n";
@@ -386,22 +346,10 @@ int main() {
                       << " | Accepted: " << g_shares_accepted 
                       << " | Rejected: " << g_shares_rejected << "\n";
             std::cout << "=========================================================\n";
-            std::cout << " Press Ctrl+C to terminate mining safely.\n";
-
             std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
         }
-    } else {
-        std::cerr << "\n[CRITICAL] connectToStratum returned false! Handshake failed.\n";
     }
-
-    std::cout << "\n=========================================================\n";
-    std::cout << " [APPLICATION TERMINATED] Miner thread loop stopped.\n";
-    std::cout << "=========================================================\n";
-    system("pause"); 
-
-    if (poolSocket != INVALID_SOCKET) {
-        closesocket(poolSocket);
-    }
+    if (poolSocket != INVALID_SOCKET) closesocket(poolSocket);
     WSACleanup();
     return 0;
 }
