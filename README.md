@@ -1,4 +1,4 @@
-# elleauto v1.0
+# elleauto v1.0 (does not work, do not use unless you want to fix it)
 
 A lightweight, multithreaded cryptocurrency miner built natively for Windows 10. This project targets the memory-hard **Autolykos v2 (Ergo Platform)** proof-of-work algorithm, utilizing an optimized OpenCL compute kernel tailored explicitly for the **8GB AMD Radeon RX 580 (Ellesmere)**.
 
