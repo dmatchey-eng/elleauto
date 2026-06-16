@@ -3,6 +3,7 @@
 #include <vector>
 #include <sstream>
 #include <iomanip>
+#include <miner_types.h>
 
 struct StratumJob {
     std::string job_id = "";
