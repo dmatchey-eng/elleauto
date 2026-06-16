@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Four-Part Fibonacci Sway Engine</title>
+    <title>Unified 5-Part Clock Core</title>
     <style>
         body {
             background-color: #0b0c10;
@@ -29,7 +29,7 @@
         .subtitle {
             color: #66fcf1;
             font-size: 0.8rem;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .clock-container {
@@ -37,36 +37,46 @@
             max-width: 800px;
             background: #1f2833;
             border: 1px solid #c5a059;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 0 20px rgba(197, 160, 89, 0.1);
         }
 
         .track {
-            margin: 20px 0;
+            margin: 12px 0;
             position: relative;
         }
 
         .track-label {
             font-size: 0.75rem;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             display: flex;
             justify-content: space-between;
         }
 
         canvas {
             width: 100%;
-            height: 60px;
+            height: 50px;
             background: #0b0c10;
             border-left: 2px solid #c5a059;
             border-right: 2px solid #c5a059;
             display: block;
         }
+
+        .intersection-label {
+            color: #ffffff;
+            text-shadow: 0 0 5px rgba(255,255,255,0.3);
+        }
+        
+        #canvas-4 {
+            border: 1px solid #ffffff;
+            height: 70px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Single-Axis Four-Part Clock</h1>
-    <div class="subtitle">Truncated Fibonacci Progression & Logarithmic Sway Engine</div>
+    <h1>Single-Axis Five-Part Clock</h1>
+    <div class="subtitle">Inverted Intersecting Reflection Matrix Configuration</div>
 
     <div class="clock-container">
         <!-- Part 1: Cyan -->
@@ -89,122 +99,137 @@
             <div class="track-label"><span id="lbl-3">PART IV: INITIALIZING...</span><span style="color: #06d6a0;">Fib: 21</span></div>
             <canvas id="canvas-3"></canvas>
         </div>
+        <!-- Part 5: Unified Matrix Intersection -->
+        <div class="track">
+            <div class="track-label"><span id="lbl-4" class="intersection-label">PART V (MATRIX CORE): INITIALIZING...</span><span style="color: #ffffff;">INTERSECT ZONE</span></div>
+            <canvas id="canvas-4"></canvas>
+        </div>
     </div>
 
     <script>
-        // 1. Configure Hardware-Like State Structures
-        const TRUNCATED_FIB =; // Explicit spaced progression nodes
+        const TRUNCATED_FIB =;
         
         const clockParts = [
-            {
-                color: '#66fcf1',       // Cyan
-                baseFrequency: 0.0008,
-                spawnRate: 0.02,        // High generation chance
-                decayRate: 0.015,       // Slow fading trace
-                fibModifier: TRUNCATED_FIB[0],
-                blocks: []
-            },
-            {
-                color: '#ff007f',       // Magenta
-                baseFrequency: 0.0012,
-                spawnRate: 0.04,        // Rapid generation
-                decayRate: 0.035,       // Fast vanishing trace
-                fibModifier: TRUNCATED_FIB[1],
-                blocks: []
-            },
-            {
-                color: '#ffb703',       // Amber
-                baseFrequency: 0.0005,
-                spawnRate: 0.015,       // Sparse structural blocks
-                decayRate: 0.010,       // Highly persistent
-                fibModifier: TRUNCATED_FIB[2],
-                blocks: []
-            },
-            {
-                color: '#06d6a0',       // Emerald
-                baseFrequency: 0.0018,
-                spawnRate: 0.05,        // Maximum saturation bursting
-                decayRate: 0.050,       // Volatile, instant decay
-                fibModifier: TRUNCATED_FIB[3],
-                blocks: []
-            }
+            { color: '#66fcf1', baseFrequency: 0.0008, spawnRate: 0.02, decayRate: 0.015, fibModifier: TRUNCATED_FIB[0], blocks: [], currentX: 0 },
+            { color: '#ff007f', baseFrequency: 0.0012, spawnRate: 0.04, decayRate: 0.035, fibModifier: TRUNCATED_FIB[1], blocks: [], currentX: 0 },
+            { color: '#ffb703', baseFrequency: 0.0005, spawnRate: 0.015, decayRate: 0.010, fibModifier: TRUNCATED_FIB[2], blocks: [], currentX: 0 },
+            { color: '#06d6a0', baseFrequency: 0.0018, spawnRate: 0.05, decayRate: 0.050, fibModifier: TRUNCATED_FIB[3], blocks: [], currentX: 0 }
         ];
 
-        // 2. Initialize Canvas Systems
+        // Part V: Specialized Intersecting Matrix Core
+        const matrixCore = {
+            blocks: []
+        };
+
         const canvases = [];
         const ctxs = [];
         
-        clockParts.forEach((part, i) => {
+        // Initialize 5 Distinct Canvases
+        for (let i = 0; i <= 4; i++) {
             const canvas = document.getElementById(`canvas-${i}`);
             canvases.push(canvas);
             ctxs.push(canvas.getContext('2d'));
-            
-            // Set internal resolution matching CSS scaling bounds
             canvas.width = 800;
-            canvas.height = 600;
-        });
+            canvas.height = 100; // Increased height configuration for sharp rendering
+        }
 
-        // 3. The Core Processing & Render Engine Loop
         function runningEngineLoop(timestamp) {
             
+            // --- STEP 1: CALCULATE DRIVERS AND CACHE POSITIONS ---
+            clockParts.forEach((part, i) => {
+                const rawSway = Math.log1p(Math.abs(Math.sin(timestamp * part.baseFrequency)));
+                const operationalPhase = rawSway * part.fibModifier;
+                
+                // Track dynamic live mapping coordinate paths
+                part.currentX = canvases[i].width * (0.1 + (Math.abs(Math.sin(operationalPhase)) * 0.8));
+            });
+
+            // --- STEP 2: PROCESS AND DRAW THE CHANNELS I - IV ---
             clockParts.forEach((part, i) => {
                 const ctx = ctxs[i];
                 const canvas = canvases[i];
                 
-                // Clear and establish background state
                 ctx.fillStyle = '#0b0c10';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // --- THE MATHEMATICAL SYSTEM FUNCTION ---
-                // Calculate position multiplier via Logarithmic Sway modulated by Fibonacci scale values
-                const rawSway = Math.log1p(Math.abs(Math.sin(timestamp * part.baseFrequency)));
-                const operationalPhase = rawSway * part.fibModifier;
-                
-                // Keep the target rendering limits smoothly inside the screen boundary limits [0.1, 0.9]
-                const mappedX = canvas.width * (0.1 + (Math.abs(Math.sin(operationalPhase)) * 0.8));
-
-                // --- SPAWN MECHANICS ENGINE ---
-                // Conditionally allocate new block fragments into the timeline array matrix
+                // Check for live frame spawns
                 if (Math.random() < part.spawnRate) {
                     part.blocks.push({
-                        x: mappedX,
-                        width: 30 + (part.fibModifier * 2), // Size varies based on Fibonacci node assignment
-                        alpha: 1.0                          // Full structural opacity at birth
+                        x: part.currentX,
+                        width: 30 + (part.fibModifier * 1.5),
+                        alpha: 1.0
+                    });
+
+                    // MATRIX REDIRECTION FOR TRACK V:
+                    // Identify previous track source following circular logic paths (0 jumps back to 3)
+                    const prevTrackIndex = (i === 0) ? 3 : i - 1;
+                    const prevTrackSource = clockParts[prevTrackIndex];
+
+                    // Allocate duplicate element to Section V
+                    matrixCore.blocks.push({
+                        spawnOriginX: prevTrackSource.currentX, // Inherits starting vector from previous track position
+                        targetTrajectoryX: part.currentX,      // Intersect target tracking trajectory
+                        progress: 0.0,                         // Complete linear timeline bounds tracking 
+                        width: 20 + (part.fibModifier * 1.2),  // Derived thickness footprint
+                        color: part.color,                     // Retains duplicate signature identification
+                        decayRate: part.decayRate * 0.8        // Slightly extended operational lifetime limits
                     });
                 }
 
-                // --- RENDERING & DECAY EXTRACTION PIPELINE ---
+                // Render and loop standard channels
                 for (let b = part.blocks.length - 1; b >= 0; b--) {
                     const block = part.blocks[b];
-                    
-                    // Render current block fragment position
                     ctx.save();
                     ctx.globalAlpha = block.alpha;
                     ctx.fillStyle = part.color;
-                    
-                    // Center the block on the tracking coordinate axis
                     ctx.fillRect(block.x - (block.width / 2), 0, block.width, canvas.height);
                     ctx.restore();
 
-                    // Process structural decay
                     block.alpha -= part.decayRate;
-
-                    // Garbage Collection: Extract dead nodes instantly from register arrays
-                    if (block.alpha <= 0) {
-                        part.blocks.splice(b, 1);
-                    }
+                    if (block.alpha <= 0) part.blocks.splice(b, 1);
                 }
 
-                // Update system label values in real-time
                 document.getElementById(`lbl-${i}`).innerText = 
-                    `PART ${['I', 'II', 'III', 'IV'][i]} -> AXIS POS: ${Math.floor(mappedX)}px | UNITS: ${part.blocks.length}`;
+                    `PART ${['I', 'II', 'III', 'IV'][i]} -> AXIS POS: ${Math.floor(part.currentX)}px | REGISTERS: ${part.blocks.length}`;
             });
 
-            // Loop infinitely via standard system refresh frames
+            // --- STEP 3: RENDER THE MATRIX REVERSAL HARVESTER (PART V) ---
+            const mCtx = ctxs[4];
+            const mCanvas = canvases[4];
+            mCtx.fillStyle = '#11141a'; // Enhanced canvas contrast bounds separation
+            mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
+
+            for (let m = matrixCore.blocks.length - 1; m >= 0; m--) {
+                const bCore = matrixCore.blocks[m];
+
+                // INVERSE MIRROR CALCULATOR MATRIX:
+                // Move block based on its timeline progress parameter
+                // It starts exactly at the previous channel's position and travels in reverse direction
+                const totalVectorDistance = bCore.targetTrajectoryX - bCore.spawnOriginX;
+                const dynamicCurrentLocationX = bCore.spawnOriginX + (totalVectorDistance * (1.0 - bCore.progress));
+
+                // Draw the inverted reflected element
+                mCtx.save();
+                mCtx.globalAlpha = 1.0 - bCore.progress; // Fade smoothly over its timeline progression
+                mCtx.fillStyle = bCore.color;
+                mCtx.fillRect(dynamicCurrentLocationX - (bCore.width / 2), 0, bCore.width, mCanvas.height);
+                mCtx.restore();
+
+                // Increment path progress over time
+                bCore.progress += bCore.decayRate;
+
+                // Safely deallocate completed timeline paths
+                if (bCore.progress >= 1.0) {
+                    matrixCore.blocks.splice(m, 1);
+                }
+            }
+
+            document.getElementById(`lbl-4`).innerText = 
+                `MATRIX INTERSECT CORE ACTIVE -> REVERSAL ACTIVE SLOTS: ${matrixCore.blocks.length}`;
+
             requestAnimationFrame(runningEngineLoop);
         }
 
-        // Energize the system clock
         requestAnimationFrame(runningEngineLoop);
     </script>
 </body>
