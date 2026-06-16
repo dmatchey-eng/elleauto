@@ -42,14 +42,16 @@ You do not need to compile the source code manually to use this miner.
 elleauto/
 ├── .github/workflows/
 │   └── windows-build.yml   <-- Automated rolling release CI pipeline
-├── include/CL/              <-- Standard Khronos OpenCL development headers
+├── include/
+│   ├── CL/                 <-- Standard Khronos OpenCL development headers
+│   └── miner_types.h       <-- 🚀 Shared 256-bit structures (HostUlong4 & StratumJob)
 ├── lib/
 │   └── OpenCL.def          <-- Module definition map for headless cloud builds
 ├── src/
 │   ├── autolykos.cl        <-- Vectorized OpenCL compute kernel
 │   ├── main.cpp            <-- Thread orchestrator, UI, and network stack
 │   ├── opencl_manager.cpp  <-- AMD platform discovery and runtime memory controller
-│   └── stratum_parser.cpp  <-- Comma-delimited JSON-RPC network stream tokenizer
+│   └── stratum_parser.cpp  <-- Dynamic JSON-RPC network stream tokenizer
 └── CMakeLists.txt          <-- Standalone build configuration script
 ```
 
