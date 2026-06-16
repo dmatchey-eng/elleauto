@@ -101,7 +101,6 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce, unsi
     g_shares_submitted++;
     g_network_status_msg = "🚀 [SUBMITTING SHARE] Nonce found! Transmitting to pool... ";
 
-    // 1. Sanitize the Job ID string from double quotes or whitespace
     std::string clean_job_id = job_id;
     while (!clean_job_id.empty() && (clean_job_id.front() == '"' || clean_job_id.front() == ' ')) {
         clean_job_id.erase(0, 1);
@@ -110,35 +109,33 @@ void submitShare(const std::string& job_id, unsigned long long found_nonce, unsi
         clean_job_id.pop_back();
     }
 
-    // 2. Format extra_nonce2 (4 bytes / 8 characters) cleanly
+    // Dynamic extra_nonce2 formatting tracking block
     unsigned long long active_ext_nonce2 = g_extra_nonce2_counter.fetch_add(1);
     std::stringstream ext2_stream;
     ext2_stream << std::setw(8) << std::setfill('0') << std::hex << active_ext_nonce2;
     std::string extra_nonce2_hex = ext2_stream.str();
 
-    // 3. Format Nonce (8 bytes / 16 characters) ensuring lowercase hex
     std::stringstream hex_stream;
     hex_stream << std::setw(16) << std::setfill('0') << std::hex << found_nonce;
     std::string nonce_hex = hex_stream.str();
 
-    // 4. Format real GPU mix_state Solution (32 bytes / 64 characters) ensuring lowercase hex
     std::stringstream sol_stream;
     sol_stream << std::setw(64) << std::setfill('0') << std::hex << found_solution;
     std::string solution_hex = sol_stream.str();
 
     unsigned int message_id = g_rpc_id_counter.fetch_add(1);
     
+    extern std::string g_pool_extra_nonce1; // Query the actual token captured by the parser
     extern MinerConfig config;
 
-    // 🚀 FIX: Pass your actual authenticated wallet address dynamically instead of "elleauto-worker"!
-    // This forms a perfectly rigid JSON array structure: ["wallet", "job_id", "extra_nonce2", "nonce", "solution"]
+    // 🚀 FIX 3: Construct perfectly balanced parameter payloads using your true ExtraNonce1 string
     std::string submitPayload = "{\"id\": " + std::to_string(message_id) + 
-                                ", \"method\": \"mining.submit\", \"params\": [\"" + 
-                                config.wallet + "\", \"" + clean_job_id + "\", \"" + 
-                                extra_nonce2_hex + "\", \"" + nonce_hex + "\", \"" + solution_hex + "\"]}\n";
+                                ", \"method\": \"mining.submit\", \"params\": [\"" + config.wallet + "\", \"" + 
+                                clean_job_id + "\", \"" + extra_nonce2_hex + "\", \"" + nonce_hex + "\", \"" + solution_hex + "\"]}\n";
 
     send(g_poolSocketGlobal, submitPayload.c_str(), (int)submitPayload.length(), 0);
 }
+
 
 void gpuMiningOrchestrator() {
     std::cout << "[GPU] Initializing hardware configuration arrays...\n";
