@@ -32,10 +32,10 @@ struct ActiveMiningJob {
 };
 
 const std::vector<PoolOption> DEFAULT_POOLS = {
-    {"HeroMiners (USA - West)", "://herominers.com", "1180"},
-    {"HeroMiners (USA - East)", "://herominers.com", "1180"},
-    {"HeroMiners (Germany / EU)", "://herominers.com", "1180"},
-    {"2Miners (Regular PPLNS)", "://2miners.com", "8888"}
+    {"HeroMiners (USA - West)", "us.ergo.herominers.com", "1180"},
+    {"HeroMiners (USA - East)", "us2.ergo.herominers.com", "1180"},
+    {"HeroMiners (Germany / EU)", "de.ergo.herominers.com", "1180"},
+    {"2Miners (Regular PPLNS)", "erg.2miners.com", "8888"}
 };
 
 std::atomic<bool> is_mining_running(true);
@@ -354,7 +354,13 @@ int main() {
             std::cout << "=========================================================\n";
             std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
         }
+    } else {
+        // 🚀 FIX: Prevent immediate terminal closure so you can view DNS/Socket error codes
+        std::cerr << "\n[CRITICAL ERROR] connectToStratum failed! Check terminal output above.\n";
+        std::cout << "Press Enter to exit safely...";
+        std::cin.get(); 
     }
+
     if (poolSocket != INVALID_SOCKET) closesocket(poolSocket);
     WSACleanup();
     return 0;
