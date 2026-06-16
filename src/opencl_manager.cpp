@@ -1,5 +1,5 @@
+#include "miner_types.h"
 #include <CL/cl.h>
-#include <miner_types.h>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -9,18 +9,10 @@
 #include <thread>
 #include <chrono>
 
-struct alignas(32) HostUlong4 {
-    unsigned long long s0;
-    unsigned long long s1;
-    unsigned long long s2;
-    unsigned long long s3;
-};
-// Shared atomic variables for UI synchronization
 extern std::atomic<int> g_dag_progress;
 extern std::atomic<bool> g_is_dag_building;
 extern std::atomic<bool> is_mining_running;
 
-// Global OpenCL handles
 cl_context g_clContext = nullptr;
 cl_command_queue g_clQueue = nullptr;
 cl_program g_clProgram = nullptr;
