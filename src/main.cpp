@@ -228,24 +228,26 @@ void listenToPool(SOCKET poolSocket) {
 
             StratumJob current_job = parseStratumLine(single_line);
 
+            // If the parser found a true valid 64-character hash lane, fire up the GPU!
             if (current_job.is_new_job) {
-                if (current_job.job_id != g_current_job_id) {
-                    is_current_job_valid = false; 
-                    g_current_job_id = current_job.job_id;
+                is_current_job_valid = false; // Halt any stale queue loop pipelines instantly
+                
+                g_current_job_id = current_job.job_id;
+                g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
+                g_next_job.difficulty  = compute256BitTarget(g_active_pool_diff);
+                
+                unsigned long long ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
+                g_next_job.nonce_start = ext_nonce_val << 32; 
 
-                    g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
-                    g_next_job.difficulty  = compute256BitTarget(g_active_pool_diff);
-                    
-                    unsigned long long ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
-                    g_next_job.nonce_start = ext_nonce_val << 32; 
-
-                    is_current_job_valid = true; 
-                }
+                g_network_status_msg = "[OK] Mining Active | Processing Ergo Job: " + g_current_job_id;
+                
+                is_current_job_valid = true; // Signals runMiningLoop to wake up and execute
             }
-        }
+        } 
     }
     if (debug_log.is_open()) debug_log.close();
 }
+
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
     std::cout << "  SELECT ERGO MINING POOL\n";
