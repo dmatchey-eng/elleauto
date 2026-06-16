@@ -3,7 +3,7 @@
 
 #include <string>
 
-// 🚀 SHARED STRUCT: Now safely visible to all translation units!
+// 🚀 MASTER DEFINITION: Only written here!
 struct alignas(32) HostUlong4 {
     unsigned long long s0 = 0;
     unsigned long long s1 = 0;
