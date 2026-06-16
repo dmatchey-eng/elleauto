@@ -10,6 +10,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <fstream> 
+#include <conio.h>   // Provides _kbhit() and _getch() on Windows platforms
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -313,12 +314,27 @@ bool connectToStratum(const MinerConfig& config, SOCKET& connectSocket) {
     return true;
 }
 
+void keyboardInputMonitor() {
+    while (is_mining_running) {
+        if (_kbhit()) { // Check if a key was tapped asynchronously
+            char key = _getch();
+            if (key == 'q' || key == 'Q' || key == 27) { // 'q' or 'Esc' key signatures
+                g_network_status_msg = "🛑 [SHUTDOWN INITIATED] Safely draining hardware pipelines...";
+                is_mining_running = false;       // Stops your OpenCL kernel loop
+                is_current_job_valid = false;     // Breaks out network socket blocks
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
 int main() {
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
     if (hOut != INVALID_HANDLE_VALUE) {
         DWORD dwMode = 0;
         if (GetConsoleMode(hOut, &dwMode)) {
-            dwMode |= 0x0004; 
+            dwMode |= 0x0004; // Enable Virtual Terminal Processing (VT100)
             SetConsoleMode(hOut, dwMode);
         }
     }
@@ -336,36 +352,54 @@ int main() {
         std::cout << "[SUCCESS] Authenticated on pool!\n";
         g_poolSocketGlobal = poolSocket; 
 
+        // Clear the screen completely exactly ONCE on initial bootstrap launch
+        std::cout << "\033[2J\033[H";
+
         std::thread network_worker(listenToPool, poolSocket);
         network_worker.detach();
 
         std::thread gpu_worker(gpuMiningOrchestrator);
         gpu_worker.detach();
 
+        // 🚀 ACTIVATE INPUT MONITOR: Tracks keystrokes independently 
+        std::thread input_worker(keyboardInputMonitor);
+        input_worker.detach();
+
         while (is_mining_running) {
-            std::cout << "\033[2J\033[1;1H"; 
+            // 🚀 ANTI-FLICKER FIX: Instantly home cursor without wiping buffer cells
+            std::cout << "\033[H"; 
+            
             std::cout << "=========================================================\n";
-            std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)\n";
+            std::cout << "  ELLEAUTO MINER V1.0 - AMD RX 580 (Ellesmere 8GB)       \n";
             std::cout << "=========================================================\n";
-            std::cout << " [POOL]    " << config.pool_host << ":" << config.pool_port << "\n";
-            std::cout << " [WALLET]  " << config.wallet.substr(0, 15) << "... (Truncated)\n";
+            std::cout << " [POOL]    " << config.pool_host << ":" << config.pool_port << "             \n";
+            std::cout << " [WALLET]  " << config.wallet.substr(0, 15) << "... (Truncated)       \n";
             std::cout << "---------------------------------------------------------\n";
-            std::cout << " [STATUS]  " << g_network_status_msg << "\n";
+            std::cout << " [STATUS]  " << g_network_status_msg << "                               \n";
             std::cout << "---------------------------------------------------------\n";
             std::cout << " [SHARES]  Submitted: " << g_shares_submitted 
                       << " | Accepted: " << g_shares_accepted 
-                      << " | Rejected: " << g_shares_rejected << "\n";
+                      << " | Rejected: " << g_shares_rejected << "     \n";
             std::cout << "=========================================================\n";
+            std::cout << " Press [Q] or [ESC] to terminate mining safely.          \n";
+
             std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
         }
     } else {
-        // 🚀 FIX: Prevent immediate terminal closure so you can view DNS/Socket error codes
         std::cerr << "\n[CRITICAL ERROR] connectToStratum failed! Check terminal output above.\n";
         std::cout << "Press Enter to exit safely...";
         std::cin.get(); 
     }
 
-    if (poolSocket != INVALID_SOCKET) closesocket(poolSocket);
+    // 🚀 DRAIN PIPELINES & CLEANUP ON INTENTIONAL QUIT
+    std::cout << "\n[SYSTEM] Disconnecting sockets...\n";
+    if (poolSocket != INVALID_SOCKET) {
+        closesocket(poolSocket);
+    }
     WSACleanup();
+    
+    std::cout << "[SYSTEM] OpenCL arrays released. Safe teardown complete.\n";
+    std::cout << "Press any key to close this terminal panel...";
+    while(!_kbhit()) { std::this_thread::sleep_for(std::chrono::milliseconds(50)); }
     return 0;
 }
