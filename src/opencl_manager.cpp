@@ -63,6 +63,100 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     return true;
 }
 
+extern cl_context g_clContext;
+extern cl_command_queue g_clQueue;
+extern cl_kernel g_miningKernel;
+extern cl_mem g_devCounter;
+extern cl_mem g_devNonces;
+
+bool initOpenCL() {
+    cl_uint platform_count = 0;
+    clGetPlatformIDs(0, nullptr, &platform_count);
+    if (platform_count == 0) {
+        std::cerr << "[GPU INIT ERROR] No OpenCL platforms detected on this machine.\n";
+        return false;
+    }
+
+    std::vector<cl_platform_id> platforms(platform_count);
+    clGetPlatformIDs(platform_count, platforms.data(), nullptr);
+
+    // Target the primary available compute engine framework path
+    cl_platform_id active_platform = platforms[0];
+
+    cl_uint device_count = 0;
+    clGetDeviceIDs(active_platform, CL_DEVICE_TYPE_GPU, 0, nullptr, &device_count);
+    if (device_count == 0) {
+        std::cerr << "[GPU INIT ERROR] No dedicated GPU devices found on active platform.\n";
+        return false;
+    }
+
+    std::vector<cl_device_id> devices(device_count);
+    clGetDeviceIDs(active_platform, CL_DEVICE_TYPE_GPU, device_count, devices.data(), nullptr);
+    cl_device_id active_device = devices[0];
+
+    // Read and display hardware footprint information
+    char gpu_name[256];
+    clGetDeviceInfo(active_device, CL_DEVICE_NAME, sizeof(gpu_name), gpu_name, nullptr);
+    std::cout << "[GPU INIT] Connected to compute device: " << gpu_name << "\n";
+
+    cl_int err;
+    g_clContext = clCreateContext(nullptr, 1, &active_device, nullptr, nullptr, &err);
+    if (err != CL_SUCCESS) return false;
+
+    // Command queue generation (Defaulting backward-compatible flags safely)
+    g_clQueue = clCreateCommandQueue(g_clContext, active_device, 0, &err);
+    if (err != CL_SUCCESS) return false;
+
+    // Allocation blocks for dynamic share counters and nonces output storage arrays
+    unsigned int initial_counter_val = 0;
+    g_devCounter = clCreateBuffer(g_clContext, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, sizeof(unsigned int), &initial_counter_val, &err);
+    if (err != CL_SUCCESS) return false;
+
+    // Hold up to 10 concurrently found share vectors (10 results * 5 ulong variables * 8 bytes)
+    g_devNonces = clCreateBuffer(g_clContext, CL_MEM_READ_WRITE, 10 * 5 * sizeof(unsigned long long), nullptr, &err);
+    if (err != CL_SUCCESS) return false;
+
+    // 🚀 LOAD & COMPILE KERNEL SOURCE
+    std::ifstream kernel_file("autolykos.cl");
+    if (!kernel_file.is_open()) {
+        std::cerr << "[GPU INIT ERROR] Failed to locate autolykos.cl inside binary file path.\n";
+        return false;
+    }
+
+    std::stringstream source_stream;
+    source_stream << kernel_file.rdbuf();
+    std::string source_str = source_stream.str();
+    const char* source_ptr = source_str.c_str();
+    size_t source_len = source_str.length();
+
+    cl_program program = clCreateProgramWithSource(g_clContext, 1, &source_ptr, &source_len, &err);
+    if (err != CL_SUCCESS) return false;
+
+    std::cout << "[GPU INIT] Compiling autolykos.cl optimized kernel layout text parameters...\n";
+    err = clBuildProgram(program, 1, &active_device, nullptr, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        // Capture build log parameters if compiler crashes
+        size_t log_size;
+        clGetProgramBuildInfo(program, active_device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_size);
+        std::vector<char> build_log(log_size);
+        clGetProgramBuildInfo(program, active_device, CL_PROGRAM_BUILD_LOG, log_size, build_log.data(), nullptr);
+        std::cerr << "[GPU COMPILER FATAL ERROR]:\n" << build_log.data() << "\n";
+        clReleaseProgram(program);
+        return false;
+    }
+
+    g_miningKernel = clCreateKernel(program, "autolykos_search", &err);
+    clReleaseProgram(program); // Safe to discard program handle container once kernel instance extraction clears
+
+    if (err != CL_SUCCESS) {
+        std::cerr << "[GPU INIT ERROR] Failed to capture 'autolykos_search' kernel footprint.\n";
+        return false;
+    }
+
+    std::cout << "[GPU SUCCESS] Context infrastructure binding initialization complete.\n";
+    return true;
+}
+
 void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficulty, HostUlong4 header_hash_input) {
     cl_int err;
     unsigned long long nonce_iterator = initial_nonce;
@@ -119,5 +213,11 @@ void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficult
     }
 }
 
-bool initOpenCL() { return true; }
-void shutdownOpenCL() {}
+
+void shutdownOpenCL() {
+    if (g_devCounter) clReleaseMemObject(g_devCounter);
+    if (g_devNonces) clReleaseMemObject(g_devNonces);
+    if (g_miningKernel) clReleaseKernel(g_miningKernel);
+    if (g_clQueue) clReleaseCommandQueue(g_clQueue);
+    if (g_clContext) clReleaseContext(g_clContext);
+}
