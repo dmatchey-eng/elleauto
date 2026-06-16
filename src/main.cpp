@@ -164,7 +164,10 @@ void gpuMiningOrchestrator() {
         return;
     }
 
-    size_t target_elements = 400000000; 
+    // 🚀 FIX: Reduce from 400M down to a safe test scale (e.g., 20,000,000 elements)
+    // 10M * 32 bytes = ~320 MB per partition buffer. This easily clears your VRAM limits!
+    size_t target_elements = 20000000; 
+    
     if (!allocateAndBuildVectorDag(target_elements)) {
         std::cerr << "[GPU ERROR] VRAM allocation limits hit. Exiting thread.\n";
         return;
@@ -182,6 +185,7 @@ void gpuMiningOrchestrator() {
     }
     shutdownOpenCL();
 }
+
 
 void listenToPool(SOCKET poolSocket) {
     char recv_buffer[4096]; 
