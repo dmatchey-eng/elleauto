@@ -170,66 +170,63 @@ void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficult
     clSetKernelArg(g_miningKernel, 2, sizeof(unsigned long long), &half_elements_vector);
     clSetKernelArg(g_miningKernel, 3, sizeof(HostUlong4), &header_hash_input);
     clSetKernelArg(g_miningKernel, 4, sizeof(HostUlong4), &target_difficulty); 
-    clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
     clSetKernelArg(g_miningKernel, 6, sizeof(cl_mem), &g_devNonces);
     clSetKernelArg(g_miningKernel, 7, sizeof(cl_mem), &g_devCounter);
 
-    // 🚀 OPTIMIZATION 1: Multiply work item footprint to aggressively saturate Polaris silicon pipelines.
-    // 1024 * 1024 threads gives your RX 580 exactly 1,048,576 execution paths per queue burst pass.
-    size_t global_work_size = 1024 * 1024;
+    // 🚀 STEP 1: Balanced work dimensions
+    size_t global_work_size = 512 * 1024; // 524,288 parallel threads per wave pass
     size_t local_work_size = 256; 
 
-    // Counter to control loop pacing intervals
-    int check_interval_counter = 0;
-
     while (is_mining_running && is_current_job_valid && !g_is_dag_building) {
-        clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
+        
+        // 🚀 STEP 2: Stack multiple non-blocking execution blocks back-to-back.
+        // This keeps the hardware compute queues full so the GPU doesn't drop to 0% load!
+        for (int wave = 0; wave < 8; wave++) {
+            clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
+            
+            // Queue the execution wave without blocking the CPU
+            err = clEnqueueNDRangeKernel(g_clQueue, g_miningKernel, 1, nullptr, &global_work_size, &local_work_size, 0, nullptr, nullptr);
+            if (err != CL_SUCCESS) break;
 
-        // 🚀 OPTIMIZATION 2: Fire the execution block. By omitting hardware locks here,
-        // commands stream asynchronously straight down the pipe into the device pipeline lines.
-        err = clEnqueueNDRangeKernel(g_clQueue, g_miningKernel, 1, nullptr, &global_work_size, &local_work_size, 0, nullptr, nullptr);
-        if (err != CL_SUCCESS) break;
+            // Shift nonces step-wise per wave block
+            nonce_iterator += global_work_size;
+        }
 
-        // 🚀 OPTIMIZATION 3: Batch tracking verification. Only block the CPU to read counters 
-        // every 8 execution loop ticks. This keeps your GPU processing compute lines uninterrupted 99% of the time!
-        check_interval_counter++;
-        if (check_interval_counter >= 8) {
-            check_interval_counter = 0;
+        // 🚀 STEP 3: Block the CPU once per big batch to let the GPU clear its stacked waves
+        clFinish(g_clQueue);
 
-            unsigned int found_count = 0;
-            clEnqueueReadBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(found_count), &found_count, 0, nullptr, nullptr);
+        // 🚀 STEP 4: Safe, clean share match validation verification check
+        unsigned int found_count = 0;
+        clEnqueueReadBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(found_count), &found_count, 0, nullptr, nullptr);
 
-            if (found_count > 0) {
-                if (found_count > 10) found_count = 10; 
+        if (found_count > 0) {
+            if (found_count > 10) found_count = 10; 
 
-                unsigned long long solved_data[50] = {0}; 
-                size_t bytes_to_read = found_count * 5 * sizeof(unsigned long long);
+            unsigned long long solved_data[50] = {0}; 
+            size_t bytes_to_read = found_count * 5 * sizeof(unsigned long long);
+            
+            clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, bytes_to_read, solved_data, 0, nullptr, nullptr);
+            clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
+            
+            for (unsigned int i = 0; i < found_count; i++) {
+                size_t base_index = i * 5;
+                unsigned long long nonce = solved_data[base_index];
                 
-                clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, bytes_to_read, solved_data, 0, nullptr, nullptr);
-                clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
+                HostUlong4 sol;
+                sol.s0 = solved_data[base_index + 1];
+                sol.s1 = solved_data[base_index + 2];
+                sol.s2 = solved_data[base_index + 3];
+                sol.s3 = solved_data[base_index + 4];
                 
-                for (unsigned int i = 0; i < found_count; i++) {
-                    size_t base_index = i * 5;
-                    unsigned long long nonce = solved_data[base_index];
-                    
-                    HostUlong4 sol;
-                    sol.s0 = solved_data[base_index + 1];
-                    sol.s1 = solved_data[base_index + 2];
-                    sol.s2 = solved_data[base_index + 3];
-                    sol.s3 = solved_data[base_index + 4];
-                    
-                    submitShare(g_current_job_id, nonce, sol);
-                }
+                submitShare(g_current_job_id, nonce, sol);
             }
         }
 
-        // Increment nonces cleanly across the updated larger batch block width
-        nonce_iterator += global_work_size;
-        
-        // 🚀 OPTIMIZATION 4: Completely removed std::this_thread::sleep_for!
-        // This forces the CPU execution thread to stay awake and pump data to VRAM as fast as possible.
+        // Yield slightly at the end of the full batch processing block to keep Windows responsive
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
+
 
 void shutdownOpenCL() {
     if (g_devCounter) clReleaseMemObject(g_devCounter);
