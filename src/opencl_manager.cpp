@@ -1,11 +1,12 @@
 #include "miner_types.h"
 #include <iostream>
-#include <string>
 #include <vector>
 #include <CL/cl.h>
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 // Global variables tracked by the subsystem runtime
 cl_context g_clContext = nullptr;
