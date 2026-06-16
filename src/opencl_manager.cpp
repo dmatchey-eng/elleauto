@@ -37,24 +37,10 @@ std::string readKernelSource(const std::string& filepath) {
     buffer << file.rdbuf();
     return buffer.str();
 }
-unsigned long long parseHexSlice64(const std::string& hex_slice) {
-    unsigned long long value = 0;
-    std::stringstream ss;
-    ss << std::hex << hex_slice;
-    ss >> value;
-    return value;
-}
 
-HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex) {
-    HostUlong4 out_vector;
-    
-    // 1. Sanitize input string length
-    std::string clean_hex = raw_hex;
-    // Strip "0x" prefix if present
-    if (clean_hex.rfind("0x", 0) == 0) {
-        clean_hex = clean_hex.substr(2);
-    }
-    
+unsigned long long parseHexSlice64(const std::string& hex_slice);
+HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex);
+
     // Ensure it is a valid 256-bit hex representation (64 characters total)
     if (clean_hex.length() != 64) {
         std::cerr << "[PARSER ERROR] Invalid header hash length: " << clean_hex.length() << " (Expected 64)\n";
