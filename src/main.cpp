@@ -164,16 +164,14 @@ void gpuMiningOrchestrator() {
         std::cerr << "[GPU ERROR] Failed to initialize OpenCL stack.\n";
         return;
     }
-
-    // 🚀 FIX: Reduce from 400M down to a safe test scale (e.g., 20,000,000 elements)
-    // 10M * 32 bytes = ~320 MB per partition buffer. This easily clears your VRAM limits!
-    size_t target_elements = 20000000; 
     
+    size_t target_elements = 67108864;    
     if (!allocateAndBuildVectorDag(target_elements)) {
         std::cerr << "[GPU ERROR] VRAM allocation limits hit. Exiting thread.\n";
         return;
     }
-
+    
+    std::cout << "\033[2J\033[H";
     std::cout << "[GPU] Engine online. Awaiting first Stratum job initialization...\n";
 
     while (is_mining_running) {
@@ -186,7 +184,6 @@ void gpuMiningOrchestrator() {
     }
     shutdownOpenCL();
 }
-
 
 void listenToPool(SOCKET poolSocket) {
     char recv_buffer[4096]; 
