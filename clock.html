@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unified 5-Part Clock Core</title>
+    <title>WebGL2 Morphing Shape Engine</title>
     <style>
         body {
             background-color: #0b0c10;
@@ -32,192 +32,325 @@
             margin-bottom: 20px;
         }
 
-        .clock-container {
+        .engine-container {
             width: 90vw;
             max-width: 800px;
             background: #1f2833;
             border: 1px solid #c5a059;
             padding: 15px;
-            box-shadow: 0 0 20px rgba(197, 160, 89, 0.1);
-        }
-
-        .track {
-            margin: 12px 0;
-            position: relative;
-        }
-
-        .track-label {
-            font-size: 0.75rem;
-            margin-bottom: 4px;
+            box-shadow: 0 0 20px rgba(197, 160, 89, 0.2);
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 15px;
         }
 
         canvas {
             width: 100%;
-            height: 50px;
+            height: 420px; 
             background: #0b0c10;
-            border-left: 2px solid #c5a059;
-            border-right: 2px solid #c5a059;
             display: block;
+            border: 1px solid #c5a059;
         }
 
-        .intersection-label {
-            color: #ffffff;
-            text-shadow: 0 0 5px rgba(255,255,255,0.3);
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0b0c10;
+            padding: 10px 15px;
+            border: 1px solid #45f3ff33;
         }
-        
-        #canvas-4 {
-            border: 1px solid #ffffff;
-            height: 70px;
+
+        button {
+            background: #1f2833;
+            color: #66fcf1;
+            border: 1px solid #66fcf1;
+            padding: 8px 16px;
+            font-family: inherit;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #66fcf1;
+            color: #0b0c10;
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: #1f2833;
+            border: 1px solid #c5a059;
+            height: 6px;
+            width: 150px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            background: #66fcf1;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            border: 1px solid #0b0c10;
+        }
+
+        #diagnostics {
+            font-size: 0.75rem;
+            color: #8892b0;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <h1>Single-Axis Five-Part Clock</h1>
-    <div class="subtitle">Inverted Intersecting Reflection Matrix Configuration</div>
+    <h1>WebGL2 Multi-Axis Clock Core</h1>
+    <div class="subtitle">Geometric Morphing & Resonance Filtering Array</div>
 
-    <div class="clock-container">
-        <!-- Part 1: Cyan -->
-        <div class="track">
-            <div class="track-label"><span id="lbl-0">PART I: INITIALIZING...</span><span style="color: #66fcf1;">Fib: 2</span></div>
-            <canvas id="canvas-0"></canvas>
-        </div>
-        <!-- Part 2: Magenta -->
-        <div class="track">
-            <div class="track-label"><span id="lbl-1">PART II: INITIALIZING...</span><span style="color: #ff007f;">Fib: 5</span></div>
-            <canvas id="canvas-1"></canvas>
-        </div>
-        <!-- Part 3: Amber -->
-        <div class="track">
-            <div class="track-label"><span id="lbl-2">PART III: INITIALIZING...</span><span style="color: #ffb703;">Fib: 13</span></div>
-            <canvas id="canvas-2"></canvas>
-        </div>
-        <!-- Part 4: Emerald -->
-        <div class="track">
-            <div class="track-label"><span id="lbl-3">PART IV: INITIALIZING...</span><span style="color: #06d6a0;">Fib: 21</span></div>
-            <canvas id="canvas-3"></canvas>
-        </div>
-        <!-- Part 5: Unified Matrix Intersection -->
-        <div class="track">
-            <div class="track-label"><span id="lbl-4" class="intersection-label">PART V (MATRIX CORE): INITIALIZING...</span><span style="color: #ffffff;">INTERSECT ZONE</span></div>
-            <canvas id="canvas-4"></canvas>
-        </div>
-    </div>
-
-    <script>
-        // FIXED: Array values are explicitly initialized to prevent browser crash
-        const TRUNCATED_FIB = [2, 5, 13, 21];
+    <div class="engine-container">
+        <canvas id="glCanvas"></canvas>
         
-        const clockParts = [
-            { color: '#66fcf1', baseFrequency: 0.0008, spawnRate: 0.02, decayRate: 0.015, fibModifier: TRUNCATED_FIB[0], blocks: [], currentX: 0 },
-            { color: '#ff007f', baseFrequency: 0.0012, spawnRate: 0.04, decayRate: 0.035, fibModifier: TRUNCATED_FIB[1], blocks: [], currentX: 0 },
-            { color: '#ffb703', baseFrequency: 0.0005, spawnRate: 0.015, decayRate: 0.010, fibModifier: TRUNCATED_FIB[2], blocks: [], currentX: 0 },
-            { color: '#06d6a0', baseFrequency: 0.0018, spawnRate: 0.05, decayRate: 0.050, fibModifier: TRUNCATED_FIB[3], blocks: [], currentX: 0 }
-        ];
-
-        const matrixCore = {
-            blocks: []
-        };
-
-        const canvases = [];
-        const ctxs = [];
-        
-        for (let i = 0; i <= 4; i++) {
-            const canvas = document.getElementById(`canvas-${i}`);
-            canvases.push(canvas);
-            ctxs.push(canvas.getContext('2d'));
-            canvas.width = 800;
-            canvas.height = 100; 
-        }
-
-        function runningEngineLoop(timestamp) {
+        <div class="controls">
+            <button id="playPauseBtn">PAUSE ENGINE</button>
             
-            // --- STEP 1: CALCULATE DRIVERS AND CACHE POSITIONS ---
-            clockParts.forEach((part, i) => {
-                const rawSway = Math.log1p(Math.abs(Math.sin(timestamp * part.baseFrequency)));
-                const operationalPhase = rawSway * part.fibModifier;
-                
-                part.currentX = canvases[i].width * (0.1 + (Math.abs(Math.sin(operationalPhase)) * 0.8));
-            });
+            <div class="slider-group">
+                <span>SPEED MULTIPLIER:</span>
+                <input type="range" id="speedSlider" min="0" max="4" step="0.1" value="1">
+                <span id="speedVal">1.0x</span>
+            </div>
+        </div>
 
-            // --- STEP 2: PROCESS AND DRAW THE CHANNELS I - IV ---
-            clockParts.forEach((part, i) => {
-                const ctx = ctxs[i];
-                const canvas = canvases[i];
-                
-                ctx.fillStyle = '#0b0c10';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+        <div id="diagnostics">GPU MORPH ENGINE ONLINE | GEOMETRY: SDF_DYNAMICS</div>
+    </div>
+    <script>
+        // --- Vertex Shader: Flat Projection Plane ---
+        const vsSource = `#version 300 es
+            in vec2 position;
+            out vec2 vUv;
+            void main() {
+                vUv = position * 0.5 + 0.5;
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+        `;
 
-                if (Math.random() < part.spawnRate) {
-                    part.blocks.push({
-                        x: part.currentX,
-                        width: 30 + (part.fibModifier * 1.5),
-                        alpha: 1.0
-                    });
+        // --- Fragment Shader Base & Math Core ---
+        const fsSource = `#version 300 es
+            precision highp float;
+            in vec2 vUv;
+            out vec4 fragColor;
 
-                    const prevTrackIndex = (i === 0) ? 3 : i - 1;
-                    const prevTrackSource = clockParts[prevTrackIndex];
+            uniform float uTime;
+            uniform float uFib;
+            uniform float uFreq;
+            uniform vec3 uColors;
 
-                    matrixCore.blocks.push({
-                        spawnOriginX: prevTrackSource.currentX, 
-                        targetTrajectoryX: part.currentX,      
-                        progress: 0.0,                         
-                        width: 20 + (part.fibModifier * 1.2),  
-                        color: part.color,                     
-                        decayRate: part.decayRate * 0.8        
-                    });
-                }
-
-                for (let b = part.blocks.length - 1; b >= 0; b--) {
-                    const block = part.blocks[b];
-                    ctx.save();
-                    ctx.globalAlpha = block.alpha;
-                    ctx.fillStyle = part.color;
-                    ctx.fillRect(block.x - (block.width / 2), 0, block.width, canvas.height);
-                    ctx.restore();
-
-                    block.alpha -= part.decayRate;
-                    if (block.alpha <= 0) part.blocks.splice(b, 1);
-                }
-
-                document.getElementById(`lbl-${i}`).innerText = 
-                    `PART ${['I', 'II', 'III', 'IV'][i]} -> AXIS POS: ${Math.floor(part.currentX)}px | REGISTERS: ${part.blocks.length}`;
-            });
-
-            // --- STEP 3: RENDER THE MATRIX REVERSAL HARVESTER (PART V) ---
-            const mCtx = ctxs[4];
-            const mCanvas = canvases[4];
-            mCtx.fillStyle = '#11141a'; 
-            mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
-
-            for (let m = matrixCore.blocks.length - 1; m >= 0; m--) {
-                const bCore = matrixCore.blocks[m];
-
-                const totalVectorDistance = bCore.targetTrajectoryX - bCore.spawnOriginX;
-                const dynamicCurrentLocationX = bCore.spawnOriginX + (totalVectorDistance * (1.0 - bCore.progress));
-
-                mCtx.save();
-                mCtx.globalAlpha = 1.0 - bCore.progress; 
-                mCtx.fillStyle = bCore.color;
-                mCtx.fillRect(dynamicCurrentLocationX - (bCore.width / 2), 0, bCore.width, mCanvas.height);
-                mCtx.restore();
-
-                bCore.progress += bCore.decayRate;
-
-                if (bCore.progress >= 1.0) {
-                    matrixCore.blocks.splice(m, 1);
-                }
+            // Calculates position tracking coordinates via Logarithmic Sway & Fibonacci
+            float calculateAxisPosition(float fib, float freq) {
+                float rawSway = log(1.0 + abs(sin(uTime * freq)));
+                float phase = rawSway * fib;
+                return 0.1 + (abs(sin(phase)) * 0.8);
             }
 
-            document.getElementById(`lbl-4`).innerText = 
-                `MATRIX INTERSECT CORE ACTIVE -> REVERSAL ACTIVE SLOTS: ${matrixCore.blocks.length}`;
+            // Signed Distance Field (SDF) Box Generator
+            float sdfBox(vec2 p, vec2 b) {
+                vec2 d = abs(p) - b;
+                return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+            }
 
-            requestAnimationFrame(runningEngineLoop);
+            // Signed Distance Field (SDF) Diamond Generator
+            float sdfRhombus(vec2 p, vec2 b) {
+                vec2 q = abs(p);
+                float h = clamp((-2.0 * q.x + b.x) / (b.x + b.y), -1.0, 1.0);
+                float d = length(q - 0.5 * b * vec2(1.0 - h, 1.0 + h));
+                return d * sign(q.x * b.y + q.y * b.x - b.x * b.y);
+            }
+            void main() {
+                vec3 finalColor = vec3(0.043, 0.047, 0.063); // Base background
+                
+                // Pre-compute current axis positions across all dimensions
+                float pX;
+                pX = calculateAxisPosition(uFib, uFreq);
+                pX = calculateAxisPosition(uFib, uFreq);
+                pX = calculateAxisPosition(uFib, uFreq);
+                pX = calculateAxisPosition(uFib, uFreq);
+
+                // Segment screen space cleanly into 5 horizontal zones
+                int laneIndex = int(vUv.y * 5.0);
+                
+                // Normalize local coordinates inside each active track window [-1.0, 1.0]
+                float localY = fract(vUv.y * 5.0) * 2.0 - 1.0;
+                
+                // Define baseline size parameters
+                vec2 targetDimensions = vec2(0.025, 0.45);
+
+                if (laneIndex < 4) {
+                    float targetX = pX[laneIndex];
+                    
+                    // --- MORPH DETERMINATION SHIFT ---
+                    // Compute velocity/phase acceleration state to drive geometry deformaton
+                    float dynamicPhase = log(1.0 + abs(sin(uTime * uFreq[laneIndex]))) * uFib[laneIndex];
+                    float shapeMorphFactor = abs(cos(dynamicPhase * 1.5)); // Cycles between 0.0 and 1.0
+
+                    // Map local space relative to block center
+                    vec2 localPos = vec2(vUv.x - targetX, localY);
+
+                    // Sample multiple geometry maps simultaneously
+                    float dBox = sdfBox(localPos, targetDimensions);
+                    float dRhombus = sdfRhombus(localPos, targetDimensions * 1.8);
+                    float dCircle = length(localPos) - targetDimensions.x * 1.5;
+
+                    // Blend geometries based on position swap velocity states
+                    float mixedSDF = mix(dBox, dRhombus, shapeMorphFactor);
+                    if (shapeMorphFactor > 0.7) {
+                        mixedSDF = mix(mixedSDF, dCircle, (shapeMorphFactor - 0.7) / 0.3);
+                    }
+
+                    // Render geometry edges smoothly using anti-aliased step thresholds
+                    if (mixedSDF < 0.0) {
+                        finalColor = uColors[laneIndex];
+                        // Add inner glowing luminance based on edge distance profile
+                        finalColor += vec3(0.3) * (1.0 - abs(mixedSDF / targetDimensions.x));
+                    }
+                    
+                    if (fract(vUv.y * 5.0) < 0.04) finalColor += vec3(0.03);
+                } 
+                else {
+                    // --- SECTION V: INTERSECT REFLECTION CORE MATRIX ---
+                    finalColor = vec3(0.066, 0.078, 0.102); 
+                    
+                    for (int i = 0; i < 4; i++) {
+                        int prevIdx = (i == 0) ? 3 : i - 1;
+                        float originX = pX[prevIdx];
+                        float currentX = pX[i];
+                        
+                        float totalVectorDistance = currentX - originX;
+                        float traceProgress = fract(uTime * uFreq[i] * 5.0); 
+                        float invertedX = originX + (totalVectorDistance * (1.0 - traceProgress));
+
+                        // Track inverse structural shape morph states matching parent profiles
+                        float parentPhase = log(1.0 + abs(sin(uTime * uFreq[i]))) * uFib[i];
+                        float matrixMorph = abs(cos(parentPhase * 1.5));
+
+                        vec2 matrixLocalPos = vec2(vUv.x - invertedX, localY);
+                        
+                        float mBox = sdfBox(matrixLocalPos, targetDimensions * vec2(0.8, 0.7));
+                        float mRhombus = sdfRhombus(matrixLocalPos, targetDimensions * vec2(1.4, 1.2));
+                        float mMixed = mix(mBox, mRhombus, matrixMorph);
+
+                        if (mMixed < 0.0) {
+                            vec3 traceColor = mix(finalColor, uColors[i], 1.0 - traceProgress);
+                            finalColor = mix(finalColor, traceColor, 0.9);
+                        }
+                    }
+                }
+
+                fragColor = vec4(finalColor, 1.0);
+            }
+        `;
+        // --- WebGL2 Context & Compilation Pipeline Binding ---
+        const canvas = document.getElementById('glCanvas');
+        const gl = canvas.getContext('webgl2');
+
+        if (!gl) {
+            document.getElementById('diagnostics').innerText = "FATAL: Graphics hardware context could not initialize.";
         }
 
-        requestAnimationFrame(runningEngineLoop);
+        canvas.width = 800;
+        canvas.height = 420;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const program = gl.createProgram();
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+        gl.useProgram(program);
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            -1, -1,   1, -1,  -1,  1,
+            -1,  1,   1, -1,   1,  1,
+        ]), gl.STATIC_DRAW);
+
+        const positionLocation = gl.getAttribLocation(program, "position");
+        gl.enableVertexAttribArray(positionLocation);
+        gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        const uTimeLoc = gl.getUniformLocation(program, "uTime");
+        const uFibLoc = gl.getUniformLocation(program, "uFib");
+        const uFreqLoc = gl.getUniformLocation(program, "uFreq");
+        const uColorsLoc = gl.getUniformLocation(program, "uColors");
+
+        gl.uniform1fv(uFibLoc, new Float32Array([2.0, 5.0, 13.0, 21.0])); 
+        gl.uniform1fv(uFreqLoc, new Float32Array([0.0008, 0.0012, 0.0005, 0.0018])); 
+        gl.uniform3fv(uColorsLoc, new Float32Array([
+            0.4, 0.98, 0.94,  // Cyan
+            1.0, 0.0,  0.5,   // Magenta
+            1.0, 0.71, 0.01,  // Amber
+            0.02, 0.84, 0.62   // Emerald
+        ]));
+        // --- Application Frame Controller & User Interface Listeners ---
+        let internalEngineTime = 0;
+        let lastRealTimestamp = 0;
+        let isEngineRunning = true;
+        let runningSpeedMultiplier = 1.0;
+
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+
+        playPauseBtn.addEventListener('click', () => {
+            isEngineRunning = !isEngineRunning;
+            playPauseBtn.innerText = isEngineRunning ? "PAUSE ENGINE" : "RESUME ENGINE";
+            playPauseBtn.style.borderColor = isEngineRunning ? "#66fcf1" : "#c5a059";
+            playPauseBtn.style.color = isEngineRunning ? "#66fcf1" : "#c5a059";
+        });
+
+        speedSlider.addEventListener('input', (e) => {
+            runningSpeedMultiplier = parseFloat(e.target.value);
+            speedVal.innerText = runningSpeedMultiplier.toFixed(1) + "x";
+        });
+
+        function renderPipelineFrame(currentRealTimestamp) {
+            const deltaRealTime = currentRealTimestamp - lastRealTimestamp;
+            lastRealTimestamp = currentRealTimestamp;
+
+            if (isEngineRunning) {
+                internalEngineTime += deltaRealTime * runningSpeedMultiplier;
+            }
+
+            gl.uniform1f(uTimeLoc, internalEngineTime);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            requestAnimationFrame(renderPipelineFrame);
+        }
+
+        requestAnimationFrame((time) => {
+            lastRealTimestamp = time;
+            requestAnimationFrame(renderPipelineFrame);
+        });
     </script>
 </body>
 </html>
