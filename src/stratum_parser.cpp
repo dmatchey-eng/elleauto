@@ -11,7 +11,7 @@ struct StratumJob {
     bool is_new_job = false;
 };
 
-// Tracks the persistent pool layout difficulty multiplier across jobs
+// Global tracking string for fallback difficulty parameters
 std::string g_active_pool_diff = "1";
 
 std::string cleanToken(const std::string& token) {
@@ -41,7 +41,6 @@ StratumJob parseStratumLine(const std::string& line) {
         }
     }
 
-    // 🚀 NEW HOOK: Catch the standard 64-bit scaling variable from the pool parameters
     if (line.find("\"method\":\"mining.set_difficulty\"") != std::string::npos) {
         size_t params_pos = line.find("\"params\":[");
         if (params_pos != std::string::npos) {
@@ -62,13 +61,25 @@ StratumJob parseStratumLine(const std::string& line) {
                 tokens.push_back(token);
             }
 
-            if (tokens.size() > 3) {
+            // 🚀 ARCHITECTURAL FIX: Explicitly match the true array positions of the Ergo protocol
+            // params[0] = Job ID ("0")
+            // params[1] = Block Height (1808415)
+            // params[2] = Seed Hash ("cf1dbe9e...")
+            // params[3] = ExtraNonce2 length tracking placeholder ("")
+            // params[4] = Public key target mapping template ("")
+            // params[5] = Target difficulty boundary limit parameter block (Numeric text string)
+            if (tokens.size() > 5) {
                 job.is_new_job = true;
                 job.job_id = cleanToken(tokens[0]);
                 job.seed_hash = cleanToken(tokens[2]);
                 
-                // 🚀 FIX: Pass the easily indexable 64-bit pool difficulty scalar
-                job.difficulty = g_active_pool_diff;
+                // Read from slot 5 if filled by the pool, otherwise use the fallback multiplier scalar
+                std::string target_token = cleanToken(tokens[5]);
+                if (!target_token.empty() && target_token != "\"\"") {
+                    job.difficulty = target_token;
+                } else {
+                    job.difficulty = g_active_pool_diff;
+                }
                 
                 extern std::string g_network_status_msg;
                 g_network_status_msg = "[OK] Mining Active | Processing Ergo Block Height: " + cleanToken(tokens[1]);
