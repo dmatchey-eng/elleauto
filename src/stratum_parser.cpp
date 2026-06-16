@@ -1,28 +1,26 @@
+#include "miner_types.h"
 #include <iostream>
 #include <string>
 #include <vector>
 #include <sstream>
-#include <iomanip>
-#include <miner_types.h>
 
-struct StratumJob {
-    std::string job_id = "";
-    std::string block_height_hex = ""; // Autolykos v2 sends height as a hex string
-    std::string header_hash_hex = "";  // Maps to your kernel's 256-bit header_hash
-    bool is_new_job = false;
-};
+extern std::string g_active_pool_diff;
+extern std::string g_pool_extra_nonce1;
 
-// Tracks the raw difficulty scalar sent by mining.set_difficulty
-std::string g_active_pool_diff = "1";
-std::string g_pool_extra_nonce1 = "0000"; 
-
-// Keeps your existing token cleaner function completely intact
-std::string cleanToken(const std::string& token); 
+std::string cleanToken(const std::string& token) {
+    std::string clean = token;
+    while (!clean.empty() && (clean.front() == ' ' || clean.front() == '"' || clean.front() == '[')) {
+        clean.erase(0, 1);
+    }
+    while (!clean.empty() && (clean.back() == ' ' || clean.back() == '"' || clean.back() == ']' || clean.back() == '}')) {
+        clean.pop_back();
+    }
+    return clean;
+}
 
 StratumJob parseStratumLine(const std::string& line) {
     StratumJob job;
 
-    // Parse packet 1 to grab your custom ExtraNonce1 assignment string
     if (line.find("\"id\":1") != std::string::npos && line.find("\"result\"") != std::string::npos) {
         size_t result_pos = line.find("\"result\":[");
         if (result_pos != std::string::npos) {
@@ -38,7 +36,6 @@ StratumJob parseStratumLine(const std::string& line) {
     
     if (line.find("\"id\":2") != std::string::npos && line.find("\"result\":true") != std::string::npos) return job;
 
-    // Parse difficulty scalar
     if (line.find("\"method\":\"mining.set_difficulty\"") != std::string::npos) {
         size_t params_pos = line.find("\"params\":[");
         if (params_pos != std::string::npos) {
@@ -48,7 +45,6 @@ StratumJob parseStratumLine(const std::string& line) {
         return job;
     }
 
-    // 💥 FIX: Parse the true 3-parameter Ergo notification frame
     if (line.find("\"method\":\"mining.notify\"") != std::string::npos) {
         size_t params_pos = line.find("\"params\":[");
         if (params_pos != std::string::npos) {
@@ -60,12 +56,11 @@ StratumJob parseStratumLine(const std::string& line) {
                 tokens.push_back(token);
             }
 
-            // Ergo solo pools send exactly 3 standard string array parameters
             if (tokens.size() >= 3) {
                 job.is_new_job = true;
                 job.job_id = cleanToken(tokens[0]);
                 job.block_height_hex = cleanToken(tokens[1]);
-                job.header_hash_hex = cleanToken(tokens[2]); // This is your 256-bit target hash hex string
+                job.header_hash_hex = cleanToken(tokens[2]); 
                 
                 extern std::string g_network_status_msg;
                 g_network_status_msg = "[OK] Mining Active | Processing Ergo Block Height Hex: " + job.block_height_hex;
