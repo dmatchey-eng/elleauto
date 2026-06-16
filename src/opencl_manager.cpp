@@ -44,7 +44,45 @@ std::string readKernelSource(const std::string& filepath) {
     buffer << file.rdbuf();
     return buffer.str();
 }
+unsigned long long parseHexSlice64(const std::string& hex_slice) {
+    unsigned long long value = 0;
+    std::stringstream ss;
+    ss << std::hex << hex_slice;
+    ss >> value;
+    return value;
+}
 
+HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex) {
+    HostUlong4 out_vector;
+    
+    // 1. Sanitize input string length
+    std::string clean_hex = raw_hex;
+    // Strip "0x" prefix if present
+    if (clean_hex.rfind("0x", 0) == 0) {
+        clean_hex = clean_hex.substr(2);
+    }
+    
+    // Ensure it is a valid 256-bit hex representation (64 characters total)
+    if (clean_hex.length() != 64) {
+        std::cerr << "[PARSER ERROR] Invalid header hash length: " << clean_hex.length() << " (Expected 64)\n";
+        return out_vector; 
+    }
+
+    // 2. Chop the 64-character big-endian string into four 16-character chunks
+    std::string chunk0 = clean_hex.substr(0, 16);  // Most significant 8 bytes
+    std::string chunk1 = clean_hex.substr(16, 16); 
+    std::string chunk2 = clean_hex.substr(32, 16); 
+    std::string chunk3 = clean_hex.substr(48, 16); // Least significant 8 bytes
+
+    // 3. Map big-endian chunks to little-endian vector components
+    // To match how the OpenCL compiler maps .s0 through .s3 indexing vectors:
+    out_vector.s0 = parseHexSlice64(chunk0);
+    out_vector.s1 = parseHexSlice64(chunk1);
+    out_vector.s2 = parseHexSlice64(chunk2);
+    out_vector.s3 = parseHexSlice64(chunk3);
+
+    return out_vector;
+}
 bool initOpenCL() {
     applyAmdDriverFixes();
     
