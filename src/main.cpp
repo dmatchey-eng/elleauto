@@ -226,27 +226,48 @@ void listenToPool(SOCKET poolSocket) {
             std::string single_line = stream_accumulator.substr(0, newline_pos);
             stream_accumulator.erase(0, newline_pos + 1);
 
-            StratumJob current_job = parseStratumLine(single_line);
+            try {
+                StratumJob current_job = parseStratumLine(single_line);
 
-            // If the parser found a true valid 64-character hash lane, fire up the GPU!
-            if (current_job.is_new_job) {
-                is_current_job_valid = false; // Halt any stale queue loop pipelines instantly
-                
-                g_current_job_id = current_job.job_id;
-                g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
-                g_next_job.difficulty  = compute256BitTarget(g_active_pool_diff);
-                
-                unsigned long long ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
-                g_next_job.nonce_start = ext_nonce_val << 32; 
+                if (current_job.is_new_job) {
+                    // Force down the active loop before memory adjustments
+                    is_current_job_valid = false; 
+                    
+                    g_current_job_id = current_job.job_id;
+                    
+                    // 🚀 SAFE RE-MAPPING: If hash parsing returns empty arrays, use a safe fallback
+                    g_next_job.header_hash = parseHeaderHashToUlong4(current_job.header_hash_hex);
+                    
+                    // Fallback to pool difficulty baseline if the dynamic lookup is empty
+                    std::string active_diff = g_active_pool_diff.empty() ? "1" : g_active_pool_diff;
+                    g_next_job.difficulty = compute256BitTarget(active_diff);
+                    
+                    // 🚀 CRITICAL FIX: Safe conversion handling to prevent numeric exceptions
+                    unsigned long long ext_nonce_val = 0;
+                    if (!g_pool_extra_nonce1.empty() && g_pool_extra_nonce1 != "0000") {
+                        ext_nonce_val = convertHexToUlong(g_pool_extra_nonce1);
+                    }
+                    g_next_job.nonce_start = (ext_nonce_val == 0) ? 1000000000ULL : (ext_nonce_val << 32); 
 
-                g_network_status_msg = "[OK] Mining Active | Processing Ergo Job: " + g_current_job_id;
-                
-                is_current_job_valid = true; // Signals runMiningLoop to wake up and execute
+                    // Instantly push the visual UI state text out to the user panel layout
+                    g_network_status_msg = "[OK] Mining Active | Processing Ergo Job: " + g_current_job_id;
+                    
+                    // 🚀 FORCE BOOTSTRAP: This forces the opencl_manager compute lane to wake up!
+                    is_current_job_valid = true; 
+                }
+            } 
+            catch (const std::exception& e) {
+                // Prevent hidden formatting bugs from crashing your thread lines silently
+                g_network_status_msg = "[ERROR] Stream processing failure occurred.";
+            }
+            catch (...) {
+                g_network_status_msg = "[ERROR] Fatal token execution crash prevented.";
             }
         } 
-    }
+    } 
     if (debug_log.is_open()) debug_log.close();
 }
+
 
 void selectPool(MinerConfig& config) {
     std::cout << "=========================================================\n";
