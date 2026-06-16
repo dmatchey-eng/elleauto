@@ -17,13 +17,6 @@ cl_mem g_dagBufferPart2 = nullptr;
 cl_mem g_devCounter = nullptr;
 cl_mem g_devNonces = nullptr;
 
-extern std::atomic<bool> is_mining_running;
-extern std::atomic<bool> is_current_job_valid;
-extern std::atomic<bool> g_is_dag_building;
-extern std::atomic<int> g_dag_progress;
-extern std::string g_current_job_id;
-
-// 🚀 CLEAN FORWARD DECLARATIONS: No dangling brackets or code statements allowed!
 unsigned long long parseHexSlice64(const std::string& hex_slice);
 HostUlong4 parseHeaderHashToUlong4(const std::string& raw_hex);
 void submitShare(const std::string& job_id, unsigned long long found_nonce, HostUlong4 found_solution);
