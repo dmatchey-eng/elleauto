@@ -6,7 +6,6 @@
 
 extern std::string g_active_pool_diff;
 extern std::string g_pool_extra_nonce1;
-
 std::string cleanToken(const std::string& token) {
     std::string clean = token;
     while (!clean.empty() && (clean.front() == ' ' || clean.front() == '"' || clean.front() == '[')) {
@@ -17,10 +16,8 @@ std::string cleanToken(const std::string& token) {
     }
     return clean;
 }
-
 StratumJob parseStratumLine(const std::string& line) {
     StratumJob job;
-
     if (line.find("\"id\":1") != std::string::npos && line.find("\"result\"") != std::string::npos) {
         size_t result_pos = line.find("\"result\":[");
         if (result_pos != std::string::npos) {
@@ -33,7 +30,6 @@ StratumJob parseStratumLine(const std::string& line) {
         }
         return job;
     }
-    
     if (line.find("\"id\":2") != std::string::npos && line.find("\"result\":true") != std::string::npos) return job;
 
     if (line.find("\"method\":\"mining.set_difficulty\"") != std::string::npos) {
@@ -44,7 +40,6 @@ StratumJob parseStratumLine(const std::string& line) {
         }
         return job;
     }
-
     if (line.find("\"method\":\"mining.notify\"") != std::string::npos) {
         size_t params_pos = line.find("\"params\":[");
         if (params_pos != std::string::npos) {
@@ -58,9 +53,7 @@ StratumJob parseStratumLine(const std::string& line) {
 
             if (tokens.size() >= 3) {
                 job.job_id = tokens[0];
-                job.block_height_hex = tokens[1];
-                
-                // Fallback scan loop if empty quote padding shifts array slots
+                job.block_height_hex = tokens[1];                
                 for (const auto& t : tokens) {
                     if (t.length() == 64) {
                         job.header_hash_hex = t;
@@ -68,7 +61,6 @@ StratumJob parseStratumLine(const std::string& line) {
                         break;
                     }
                 }
-
                 if (job.is_new_job) {
                     extern std::string g_network_status_msg;
                     g_network_status_msg = "[OK] Mining Active | Processing Ergo Height: " + job.block_height_hex;
