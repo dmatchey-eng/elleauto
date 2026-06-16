@@ -209,28 +209,23 @@ bool allocateAndBuildVectorDag(size_t total_elements_count) {
     return true;
 }
 
-void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficulty_target, unsigned long long header_hash_input) {
+// 💥 UPDATED INTERFACE: Expects hex-parsed structural representations for true 256-bit alignments
+void runMiningLoop(unsigned long long initial_nonce, HostUlong4 target_difficulty, HostUlong4 header_hash_input) {
     cl_int err;
     unsigned long long nonce_iterator = initial_nonce;
     unsigned long long half_elements_vector = 200000000; 
 
-    // 🚀 ALIGNMENT FIX: True 256-bit boundary target approximation for 64-bit kernel limits.
-    // Instead of a primitive 64-bit division that overflows, we shift the network target 
-    // baseline (2^64) by the pool difficulty scalar. This matches the evaluation bounds 
-    // that HeroMiners re-runs on its own node validation layers.
-    unsigned long long derived_target = 0xFFFFFFFFFFFFFFFFULL;
-    if (difficulty_target > 0) {
-        // Safe bitwise alignment preventing numeric zero-clipping rejections
-        derived_target = (0xFFFFFFFFFFFFFFFFULL / difficulty_target);
-    }
-
     unsigned int reset_counter = 0;
     clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
+    
+    // Bind base pointer configurations
     clSetKernelArg(g_miningKernel, 0, sizeof(cl_mem), &g_dagBufferPart1);
     clSetKernelArg(g_miningKernel, 1, sizeof(cl_mem), &g_dagBufferPart2);
     clSetKernelArg(g_miningKernel, 2, sizeof(unsigned long long), &half_elements_vector);
-    clSetKernelArg(g_miningKernel, 3, sizeof(unsigned long long), &header_hash_input);
-    clSetKernelArg(g_miningKernel, 4, sizeof(unsigned long long), &derived_target); // Passes perfectly aligned bounds
+    
+    // 💥 FIX 2: Correctly pass the 32-byte ulong4 vector arguments to the kernel
+    clSetKernelArg(g_miningKernel, 3, sizeof(HostUlong4), &header_hash_input);
+    clSetKernelArg(g_miningKernel, 4, sizeof(HostUlong4), &target_difficulty); 
     clSetKernelArg(g_miningKernel, 5, sizeof(unsigned long long), &nonce_iterator);
     clSetKernelArg(g_miningKernel, 6, sizeof(cl_mem), &g_devNonces);
     clSetKernelArg(g_miningKernel, 7, sizeof(cl_mem), &g_devCounter);
@@ -249,24 +244,37 @@ void runMiningLoop(unsigned long long initial_nonce, unsigned long long difficul
         unsigned int found_count = 0;
         clEnqueueReadBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(found_count), &found_count, 0, nullptr, nullptr);
 
-            if (found_count > 0) {
-            // 🚀 FIX: Pull down both the Nonce and its mathematical matching Solution hash directly from VRAM
-            unsigned long long solved_data[20] = {0};
-            clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, found_count * 2 * sizeof(unsigned long long), solved_data, 0, nullptr, nullptr);
+        if (found_count > 0) {
+            if (found_count > 10) found_count = 10; // Match kernel hardware allocation boundaries
+
+            // 💥 FIX 3: Clear space for 5 elements per share found (1 nonce + 4 lanes of final_hash)
+            unsigned long long solved_data[50] = {0}; 
+            size_t bytes_to_read = found_count * 5 * sizeof(unsigned long long);
+            
+            clEnqueueReadBuffer(g_clQueue, g_devNonces, CL_TRUE, 0, bytes_to_read, solved_data, 0, nullptr, nullptr);
             clEnqueueWriteBuffer(g_clQueue, g_devCounter, CL_TRUE, 0, sizeof(reset_counter), &reset_counter, 0, nullptr, nullptr);
             
             extern std::string g_current_job_id;
-            // Updated declaration passing BOTH the numerical Nonce and the true mathematical Solution hash
-            void submitShare(const std::string& job_id, unsigned long long found_nonce, unsigned long long found_solution);
+            
+            // 💥 UPDATED DECLARATION: Accepts the found nonce alongside its complete 256-bit solution vector
+            void submitShare(const std::string& job_id, unsigned long long found_nonce, HostUlong4 solution_hash);
             
             for (unsigned int i = 0; i < found_count; i++) {
-                submitShare(g_current_job_id, solved_data[i * 2], solved_data[(i * 2) + 1]);
+                size_t base_index = i * 5;
+                unsigned long long nonce = solved_data[base_index];
+                
+                HostUlong4 sol;
+                sol.s0 = solved_data[base_index + 1];
+                sol.s1 = solved_data[base_index + 2];
+                sol.s2 = solved_data[base_index + 3];
+                sol.s3 = solved_data[base_index + 4];
+                
+                submitShare(g_current_job_id, nonce, sol);
             }
         }
 
-        // Increment search nonces aggressively per loop pass
         nonce_iterator += global_work_size;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2)); // Maximize Polaris compute lane saturation
+        std::this_thread::sleep_for(std::chrono::milliseconds(2)); 
     }
 }
 
